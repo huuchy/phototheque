@@ -61,6 +61,16 @@
   .mois-titre span{display:block; font-family:var(--sans); font-size:11.5px; margin-top:1px}
 
   /* ── grille de photos ──────────────────────────────────────────────── */
+  .bandeau{margin:10px; padding:14px; border-radius:12px; background:#3A2C18;
+    border:1px solid #6B5326; color:#F3E4C8; font-size:13.5px; line-height:1.5}
+  .bandeau b{display:block; font-weight:600; font-size:15px; margin-bottom:4px}
+  .bandeau .boutons{display:flex; gap:10px; align-items:center; margin-top:12px}
+  .bandeau .bouton{border-color:#6B5326; background:#2B2113; color:#F3E4C8}
+  .bandeau .bouton.fort{background:var(--ambre); color:#1A1509; border-color:var(--ambre)}
+  .bandeau .bouton.plat{background:none; border-color:transparent; color:#C9B99A}
+  .case.manquante img{opacity:.25; filter:grayscale(1)}
+  .case.manquante::after{content:"✕"; position:absolute; inset:0; display:grid;
+    place-items:center; color:#E0796B; font-size:20px}
   .jour-tete{position:sticky; top:calc(52px + env(safe-area-inset-top,0px)); z-index:20;
     display:flex; align-items:baseline; gap:8px; padding:14px 14px 8px;
     background:linear-gradient(to bottom, rgba(18,16,14,.95) 60%, rgba(18,16,14,0))}
@@ -220,7 +230,7 @@ const CONFIG = {
             gras:"polices/CrimsonText-Bold.ttf",
             italique:"polices/CrimsonText-Italic.ttf"},
 };
-const VERSION = 15;
+const VERSION = 17;
 const PORTEES = "https://www.googleapis.com/auth/drive.file "
               + "https://www.googleapis.com/auth/drive.appdata";
 
@@ -1199,6 +1209,16 @@ function vuePhotos(){
   const dates = Object.keys(jours).sort().reverse();
   const total = vivantes().length;
 
+  const alerte = S.perdues?.length ? `<div class="bandeau">
+      <b>${pluriel(S.perdues.length, "photo n’est plus", "photos ne sont plus")}
+         dans ton Drive</b>
+      Leur vignette reste jusqu’à ta confirmation, au cas où la suppression serait
+      accidentelle : elles sont encore récupérables 30 jours dans la corbeille de Drive.
+      <div class="boutons">
+        <button class="bouton fort" data-a="retirer-perdues">Les retirer</button>
+        <button class="bouton plat" data-a="oublier-perdues">Plus tard</button>
+      </div></div>` : "";
+
   const entete = `<header class="entete"><div class="entete-rang">
     <button class="rond" data-a="mois" data-pas="-1" aria-label="Mois précédent">${I.gauche}</button>
     <div class="mois-titre">${moisLong(S.mois + "-01")}
@@ -1213,12 +1233,12 @@ function vuePhotos(){
         S.modeChoix ? "Tout le mois" : "Choisir"}</button>` : ""}
   </div></header>`;
 
-  if(!dates.length) return entete + `<div class="vide">
+  if(!dates.length) return entete + alerte + `<div class="vide">
     <p>Rien en ${moisLong(S.mois + "-01").split(" ")[0]}.</p>
     <small>${total ? "Change de mois avec les flèches, ou dépose de nouvelles photos."
       : "Appuie sur le bouton ambre pour déposer tes premières photos."}</small></div>`;
 
-  return entete + `<div class="${S.modeChoix ? "choix" : ""}">` + dates.map(d => {
+  return entete + alerte + `<div class="${S.modeChoix ? "choix" : ""}">` + dates.map(d => {
     const gens = (S.donnees.jours[d]?.personnes || []).map(membre).filter(Boolean);
     const texte = (S.donnees.entrees||[]).some(e => e.date === d && !e.supprime);
     return `<section>
@@ -1236,8 +1256,8 @@ function vuePhotos(){
             >${texte ? "Relire" : "Raconter"}</button></span>
       </div>
       <div class="grille">${jours[d].map(p => `
-        <button class="case" data-a="ouvrir" data-id="${p.id}"
-          aria-pressed="${S.selection.has(p.id)}">
+        <button class="case ${perdue(p.id) ? "manquante" : ""}" data-a="ouvrir"
+          data-id="${p.id}" aria-pressed="${S.selection.has(p.id)}">
           <img data-photo="${p.id}" alt="" decoding="async">
           <span class="coche"></span></button>`).join("")}</div>
     </section>`;
@@ -1246,6 +1266,8 @@ function vuePhotos(){
       <button class="bouton" data-a="plus-photos">Afficher ${
         pluriel(reste, "photo de plus", "photos de plus")}</button></div>` : "");
 }
+
+const perdue = id => !!S.perdues?.some(p => p.id === id);
 
 function posterVignettes(){
   for(const img of document.querySelectorAll("img[data-photo]")){
@@ -1731,12 +1753,11 @@ const ACTIONS = {
 document.addEventListener("click", e => {
   const el = e.target.closest("[data-a]");
   if(!el) return;
+  // un champ de saisie garde son comportement : sans quoi le sélecteur de date
+  // ou la case à cocher ne s'ouvrent jamais
+  if(el.matches("input, select, textarea")) return;
   const f = ACTIONS[el.dataset.a];
-  if(f && !["saisie","date","relance","originaux","qui"].includes(el.dataset.a)){
-    e.preventDefault(); Promise.resolve(f(el)).catch(err => mot(err.message, true));
-  }
-  if(f && el.dataset.a === "qui"){ e.preventDefault();
-    Promise.resolve(f(el)).catch(err => mot(err.message, true)); }
+  if(f){ e.preventDefault(); Promise.resolve(f(el)).catch(err => mot(err.message, true)); }
 });
 document.addEventListener("change", e => {
   const el = e.target.closest("[data-a]");
