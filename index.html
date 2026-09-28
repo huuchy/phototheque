@@ -1,0 +1,1416 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#101F29">
+<title>Photothèque familiale</title>
+<style>
+  :root{
+    --encre:#101F29; --fond2:#172C38; --fond3:#1D3543; --trait:#26424F;
+    --texte:#EFE6D6; --sourdine:#8FA6B2; --lampe:#E8A24F; --alerte:#E0796B;
+    --vert:#6FBF8F; --orange:#E8A24F; --rouge:#E0796B;
+    --photos:#7FB2D8; --ecrire:#E8A24F; --carnets:#9E9BE0; --famille:#D98AA0; --reglages:#B48AC0;
+    --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{margin:0; background:var(--encre); color:var(--texte); font-family:var(--sans);
+       font-size:15px; line-height:1.5;
+       padding-top:env(safe-area-inset-top,0); padding-bottom:env(safe-area-inset-bottom,0)}
+  button{font:inherit; color:inherit; cursor:pointer}
+  input,textarea,select{font:inherit; color:inherit}
+  :focus-visible{outline:2px solid var(--lampe); outline-offset:2px}
+
+  .haut{position:sticky; top:0; z-index:20; background:var(--fond2);
+        border-bottom:1px solid var(--trait); padding:8px 14px}
+  .haut .rang1{display:flex; align-items:center; gap:10px}
+  .marque{font-family:var(--serif); font-size:17px; margin:0; flex:1}
+  .onglets{display:flex; gap:2px; overflow-x:auto; margin-top:6px; scrollbar-width:none}
+  .onglets::-webkit-scrollbar{display:none}
+  .onglet{background:transparent; border:0; border-bottom:2px solid transparent;
+          padding:7px 12px; color:var(--sourdine); white-space:nowrap}
+  .onglet[aria-current="true"]{color:var(--texte); border-bottom-color:var(--c)}
+  .mini{background:transparent; border:1px solid var(--trait); border-radius:6px;
+        padding:5px 10px; font-size:12.5px; color:var(--sourdine)}
+  .mini:hover{background:var(--fond3); color:var(--texte)}
+  .page{max-width:900px; margin:0 auto; padding:16px 14px 90px}
+  h2.titre{font-family:var(--serif); font-size:21px; margin:0 0 4px}
+  .sous{color:var(--sourdine); font-size:13px; margin:0 0 14px}
+  .bouton{padding:9px 15px; border-radius:8px; border:1px solid var(--trait); background:var(--fond2)}
+  .bouton.fort{background:var(--lampe); color:#17222B; border-color:var(--lampe); font-weight:600}
+  .bouton:disabled{opacity:.45}
+  .ligne{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+  .carte{background:var(--fond2); border:1px solid var(--trait); border-radius:10px;
+         padding:13px 14px; margin-top:12px}
+  .champ{display:block; margin-top:10px; font-size:12.5px; color:var(--sourdine)}
+  .champ input,.champ select,.champ textarea{width:100%; margin-top:4px; background:var(--fond3);
+    border:1px solid var(--trait); border-radius:8px; padding:9px 10px; color:var(--texte);
+    color-scheme:dark}
+  .puce{padding:3px 10px; font-size:12.5px; border:1px solid var(--trait); border-radius:999px;
+        color:var(--sourdine); background:transparent}
+  .puce[aria-pressed="true"]{color:var(--encre); border-color:transparent}
+  .pastille{width:9px; height:9px; border-radius:50%; display:inline-block}
+
+  /* barre d'action fixe, pouce en bas */
+  .barrebas{position:fixed; left:0; right:0; bottom:0; z-index:25; background:var(--fond2);
+    border-top:1px solid var(--trait); padding:10px 14px calc(10px + env(safe-area-inset-bottom,0));
+    display:flex; gap:8px; align-items:center}
+  .barrebas .bouton{flex:1}
+
+  /* photos */
+  .jour{margin-top:20px}
+  .jour-tete{display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; margin-bottom:6px}
+  .jour-date{font-family:var(--serif); font-size:16px}
+  .grille{display:grid; grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); gap:4px}
+  .vignette{position:relative; aspect-ratio:1; border-radius:6px; overflow:hidden;
+            background:var(--fond3); border:0; padding:0}
+  .vignette img{width:100%; height:100%; object-fit:cover; display:block}
+  .vignette[aria-pressed="true"]{outline:3px solid var(--lampe); outline-offset:-3px}
+  .vignette .coche{position:absolute; top:4px; right:4px; width:18px; height:18px;
+    border-radius:50%; background:var(--lampe); color:#17222B; font-size:12px;
+    display:none; place-items:center}
+  .vignette[aria-pressed="true"] .coche{display:grid}
+  .mois-nav{display:flex; align-items:center; gap:10px; margin-top:6px}
+  .mois-nav b{font-family:var(--serif); font-size:18px; flex:1; text-align:center}
+
+  /* écrire */
+  .fil{display:flex; flex-direction:column; gap:14px; margin:14px 0}
+  .bulle{font-family:var(--serif); font-size:16px; line-height:1.6; white-space:pre-wrap}
+  .moi .bulle{background:var(--fond2); border:1px solid var(--trait); border-radius:10px;
+              padding:11px 14px; margin-left:auto; width:fit-content; max-width:88%}
+  .claude .bulle{border-left:2px solid var(--lampe); padding-left:14px}
+  .saisie{width:100%; border:0; background:transparent; resize:none; outline:none;
+          font-family:var(--serif); font-size:16px; min-height:64px}
+  .entree-texte{font-family:var(--serif); font-size:16.5px; line-height:1.7; white-space:pre-wrap}
+
+  .bilan{background:var(--fond3); border:1px solid var(--trait); border-radius:8px;
+         padding:11px 13px; margin-top:12px; font-size:13px; line-height:1.55}
+  .bilan ul{margin:6px 0 0; padding-left:18px; color:var(--alerte)}
+  .jauge{height:4px; background:var(--fond3); border-radius:2px; overflow:hidden; margin-top:8px}
+  .jauge i{display:block; height:100%; background:var(--lampe); width:0}
+  .visio{position:fixed; inset:0; background:#0B141B; z-index:40; display:flex;
+         flex-direction:column; padding-top:env(safe-area-inset-top,0)}
+  .visio-image{flex:1; display:grid; place-items:center; overflow:hidden; padding:8px}
+  .visio-image img{max-width:100%; max-height:100%; object-fit:contain; border-radius:6px}
+  .visio-bas{border-top:1px solid var(--trait); background:var(--fond2);
+    padding:12px 14px calc(12px + env(safe-area-inset-bottom,0))}
+  .toast{position:fixed; left:50%; bottom:80px; transform:translateX(-50%); background:var(--fond3);
+         border:1px solid var(--trait); border-radius:8px; padding:11px 16px; z-index:60;
+         max-width:92vw; text-align:center}
+  .toast.err{border-color:var(--alerte)}
+  .vide{color:var(--sourdine); text-align:center; padding:30px 10px}
+  .accueil{max-width:440px; margin:8vh auto; text-align:center}
+  .accueil h1{font-family:var(--serif); font-size:30px; margin:0 0 10px}
+</style>
+</head>
+<body>
+<div id="racine"></div>
+<script>
+/* ═══════════════════════════════════════════════════════════════════════════
+   Photothèque familiale — page unique, sans dépendance, sans outil de build.
+   Le code est public : aucune clé secrète ici. Les photos et les données
+   vivent dans le Drive de l'utilisateur, la clé Anthropic dans le relais.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const CONFIG = {
+  CLIENT_ID: "874730045930-8viej7v0haelemgknuu88fg3h43jqrnn.apps.googleusercontent.com",
+  DOSSIER: "Photothèque",                 // créé par l'application dans Drive
+  RELAIS: "",     // à remplir après l'étape 3 : https://phototheque-ia.<compte>.workers.dev
+                  // laissé vide, tout marche sauf la relance et la mise en forme du texte
+  POLICES: {normal:"polices/CrimsonText-Regular.ttf",
+            gras:"polices/CrimsonText-Bold.ttf",
+            italique:"polices/CrimsonText-Italic.ttf"},
+};
+const VERSION = 2;
+const PORTEES = "https://www.googleapis.com/auth/drive.file "
+              + "https://www.googleapis.com/auth/drive.appdata";
+
+/* ═══ MOTEUR — testable hors navigateur (voir essais/moteur.test.js) ═══════ */
+
+const MOIS = ["janvier","février","mars","avril","mai","juin","juillet","août",
+              "septembre","octobre","novembre","décembre"];
+const JOURS = ["dimanche","lundi","mardi","mercredi","jeudi","vendredi","samedi"];
+const dateLongue = iso => { const d = new Date(iso+"T12:00:00");
+  return `${JOURS[d.getDay()]} ${d.getDate()} ${MOIS[d.getMonth()]} ${d.getFullYear()}`; };
+const moisLong = cle => `${MOIS[+cle.slice(5,7)-1]} ${cle.slice(0,4)}`;
+
+/* ── Exif : date de prise de vue et orientation, lues à la main ──────────── */
+function lireExif(octets){
+  const r = {date:null, heure:null, orientation:1};
+  try{
+    const v = new DataView(octets.buffer || octets, octets.byteOffset || 0, octets.byteLength);
+    let i = 2;
+    while(i < v.byteLength - 4){
+      if(v.getUint8(i) !== 0xFF){ i++; continue; }
+      const m = v.getUint8(i+1);
+      if(m === 0xD8 || (m >= 0xD0 && m <= 0xD7)){ i += 2; continue; }
+      const lg = v.getUint16(i+2);
+      if(m === 0xE1){
+        let entete = "";
+        for(let k = 0; k < 6; k++) entete += String.fromCharCode(v.getUint8(i+4+k));
+        if(entete === "Exif\0\0"){
+          const base = i + 10;
+          const gros = v.getUint16(base) === 0x4D4D;          // "MM"
+          lireIfd(v, base, base + v.getUint32(base+4, !gros), gros, r, 0);
+          break;
+        }
+      }
+      if(m === 0xDA) break;
+      i += 2 + lg;
+    }
+  }catch{}
+  return r;
+}
+function lireIfd(v, base, adr, gros, r, profondeur){
+  if(profondeur > 2 || adr <= base || adr + 2 > v.byteLength) return;
+  const pe = !gros;                                            // petit boutiste ?
+  const nb = v.getUint16(adr, pe);
+  for(let k = 0; k < nb; k++){
+    const o = adr + 2 + 12*k;
+    if(o + 12 > v.byteLength) return;
+    const etiquette = v.getUint16(o, pe), type = v.getUint16(o+2, pe),
+          compte = v.getUint32(o+4, pe);
+    if(etiquette === 0x0112 && type === 3) r.orientation = v.getUint16(o+8, pe) || 1;
+    else if(etiquette === 0x8769) lireIfd(v, base, base + v.getUint32(o+8, pe), gros, r, profondeur+1);
+    else if((etiquette === 0x9003 || etiquette === 0x0132) && type === 2){
+      const d = base + v.getUint32(o+8, pe);
+      let t = "";
+      for(let j = 0; j < Math.min(compte, 20) && d+j < v.byteLength; j++){
+        const c = v.getUint8(d+j); if(!c) break; t += String.fromCharCode(c);
+      }
+      const m = t.match(/^(\d{4})[:\-](\d{2})[:\-](\d{2})[ T](\d{2}):(\d{2})/);
+      if(m && (etiquette === 0x9003 || !r.date)){
+        r.date = `${m[1]}-${m[2]}-${m[3]}`; r.heure = `${m[4]}:${m[5]}`;
+      }
+    }
+  }
+}
+
+/* ── JPEG : dimensions et composantes, sans décoder ──────────────────────── */
+function dimsJpeg(octets){
+  const v = new DataView(octets.buffer || octets, octets.byteOffset || 0, octets.byteLength);
+  let i = 2;
+  while(i < v.byteLength - 9){
+    if(v.getUint8(i) !== 0xFF){ i++; continue; }
+    const m = v.getUint8(i+1);
+    if(m === 0xD8 || (m >= 0xD0 && m <= 0xD7)){ i += 2; continue; }
+    const lg = v.getUint16(i+2);
+    if([0xC0,0xC1,0xC2,0xC3,0xC5,0xC6,0xC7,0xC9,0xCA,0xCB,0xCD,0xCE,0xCF].includes(m))
+      return {h:v.getUint16(i+5), l:v.getUint16(i+7), comp:v.getUint8(i+9)};
+    i += 2 + lg;
+  }
+  throw new Error("JPEG illisible");
+}
+
+/* ── Police TrueType : largeurs pour couper les lignes, et fichier embarqué ─ */
+class Police{
+  constructor(octets, nom){
+    this.brut = octets instanceof Uint8Array ? octets : new Uint8Array(octets);
+    this.nom = nom;
+    const v = new DataView(this.brut.buffer, this.brut.byteOffset, this.brut.byteLength);
+    this.v = v;
+    const nb = v.getUint16(4);
+    this.tables = {};
+    for(let i = 0; i < nb; i++){
+      const o = 12 + 16*i;
+      let tag = "";
+      for(let k = 0; k < 4; k++) tag += String.fromCharCode(v.getUint8(o+k));
+      this.tables[tag] = {debut:v.getUint32(o+8), long:v.getUint32(o+12)};
+    }
+    const h = this.tables.head.debut;
+    this.upem = v.getUint16(h+18) || 1000;
+    this.bbox = [v.getInt16(h+36), v.getInt16(h+38), v.getInt16(h+40), v.getInt16(h+42)]
+                .map(x => Math.round(x*1000/this.upem));
+    const hh = this.tables.hhea.debut;
+    this.ascent = Math.round(v.getInt16(hh+4)*1000/this.upem);
+    this.descent = Math.round(v.getInt16(hh+6)*1000/this.upem);
+    const nbm = v.getUint16(hh+34), hm = this.tables.hmtx.debut;
+    this.avances = [];
+    for(let i = 0; i < nbm; i++) this.avances.push(v.getUint16(hm + 4*i));
+    this.italique = this.tables.post ? v.getInt32(this.tables.post.debut+4)/65536 : 0;
+    this.capheight = Math.round(this.ascent*0.7);
+    const o2 = this.tables["OS/2"];
+    if(o2 && v.getUint16(o2.debut) >= 2 && o2.long >= 90){
+      const ch = v.getInt16(o2.debut+88);
+      if(ch) this.capheight = Math.round(ch*1000/this.upem);
+    }
+    this.cmap = this.lireCmap();
+    this.largeurs = [];
+    for(let c = 32; c < 256; c++){
+      const g = this.cmap[uniDepuisCp1252(c)] || 0;
+      const a = g < this.avances.length ? this.avances[g] : this.avances[this.avances.length-1];
+      this.largeurs.push(Math.round(a*1000/this.upem));
+    }
+  }
+  lireCmap(){
+    const v = this.v, deb = this.tables.cmap.debut, nb = v.getUint16(deb+2);
+    let choisi = null;
+    for(let i = 0; i < nb; i++){
+      const o = deb + 4 + 8*i, plat = v.getUint16(o), enc = v.getUint16(o+2);
+      const dec = v.getUint32(o+4);
+      if((plat === 3 && (enc === 1 || enc === 10)) || (plat === 0)){ choisi = deb + dec; break; }
+      if(choisi === null) choisi = deb + dec;
+    }
+    const table = {};
+    if(choisi === null) return table;
+    const fmt = v.getUint16(choisi);
+    if(fmt === 4){
+      const segx2 = v.getUint16(choisi+6), seg = segx2/2;
+      const fins = choisi+14, debuts = fins+segx2+2, deltas = debuts+segx2, ranges = deltas+segx2;
+      for(let i = 0; i < seg; i++){
+        const f = v.getUint16(fins+2*i), d = v.getUint16(debuts+2*i);
+        const delta = v.getInt16(deltas+2*i), ro = v.getUint16(ranges+2*i);
+        for(let c = d; c <= f && c !== 0xFFFF; c++){
+          let g;
+          if(ro === 0) g = (c + delta) & 0xFFFF;
+          else{
+            const a = ranges + 2*i + ro + 2*(c-d);
+            if(a + 2 > v.byteLength) continue;
+            g = v.getUint16(a);
+            if(g) g = (g + delta) & 0xFFFF;
+          }
+          if(g) table[c] = g;
+        }
+      }
+    }
+    return table;
+  }
+  largeur(texte, taille){
+    let t = 0;
+    for(const o of encoder(texte)) t += (o >= 32 && o < 256) ? this.largeurs[o-32] : 500;
+    return t * taille / 1000;
+  }
+}
+
+/* cp1252 : Latin-1 plus quelques signes typographiques */
+const CP1252 = {0x80:0x20AC,0x82:0x201A,0x83:0x0192,0x84:0x201E,0x85:0x2026,0x86:0x2020,
+  0x87:0x2021,0x88:0x02C6,0x89:0x2030,0x8A:0x0160,0x8B:0x2039,0x8C:0x0152,0x8E:0x017D,
+  0x91:0x2018,0x92:0x2019,0x93:0x201C,0x94:0x201D,0x95:0x2022,0x96:0x2013,0x97:0x2014,
+  0x98:0x02DC,0x99:0x2122,0x9A:0x0161,0x9B:0x203A,0x9C:0x0153,0x9E:0x017E,0x9F:0x0178};
+const VERS_CP1252 = Object.fromEntries(Object.entries(CP1252).map(([o,u]) => [u, +o]));
+const uniDepuisCp1252 = o => CP1252[o] || o;
+function encoder(texte){
+  const out = [];
+  for(const c of (texte || "")){
+    const u = c.codePointAt(0);
+    if(u < 0x80 || (u >= 0xA0 && u <= 0xFF)) out.push(u);
+    else if(VERS_CP1252[u]) out.push(VERS_CP1252[u]);
+    else out.push(63);                                   // ?
+  }
+  return out;
+}
+const echapper = texte => encoder(texte).map(o =>
+  o === 92 ? "\\\\" : o === 40 ? "\\(" : o === 41 ? "\\)" :
+  o < 32 || o > 126 ? "\\" + o.toString(8).padStart(3,"0") : String.fromCharCode(o)).join("");
+
+/* ── Écriture du PDF ─────────────────────────────────────────────────────── */
+const enc = new TextEncoder();
+const octetsDe = x => typeof x === "string" ? enc.encode(x) : x;
+
+class PDF{
+  constructor(){ this.objets = [null]; }
+  ajouter(contenu){ this.objets.push(octetsDe(contenu)); return this.objets.length - 1; }
+  flux(entetes, donnees){
+    const d = octetsDe(donnees);
+    const tete = enc.encode(`<< ${entetes} /Length ${d.length} >>\nstream\n`);
+    const fin = enc.encode("\nendstream");
+    const tout = new Uint8Array(tete.length + d.length + fin.length);
+    tout.set(tete); tout.set(d, tete.length); tout.set(fin, tete.length + d.length);
+    this.objets.push(tout);
+    return this.objets.length - 1;
+  }
+  sortie(racine, infos){
+    const morceaux = [enc.encode("%PDF-1.4\n%\xE2\xE3\xCF\xD3\n")];
+    let position = morceaux[0].length;
+    const positions = [0];
+    for(let n = 1; n < this.objets.length; n++){
+      positions[n] = position;
+      const tete = enc.encode(`${n} 0 obj\n`), pied = enc.encode("\nendobj\n");
+      morceaux.push(tete, this.objets[n], pied);
+      position += tete.length + this.objets[n].length + pied.length;
+    }
+    let xref = `xref\n0 ${this.objets.length}\n0000000000 65535 f \n`;
+    for(let n = 1; n < this.objets.length; n++)
+      xref += String(positions[n]).padStart(10,"0") + " 00000 n \n";
+    xref += `trailer\n<< /Size ${this.objets.length} /Root ${racine} 0 R /Info ${infos} 0 R >>\n`
+          + `startxref\n${position}\n%%EOF\n`;
+    morceaux.push(enc.encode(xref));
+    const total = morceaux.reduce((s,m) => s + m.length, 0);
+    const sortie = new Uint8Array(total);
+    let o = 0;
+    for(const m of morceaux){ sortie.set(m, o); o += m.length; }
+    return sortie;
+  }
+}
+
+const mm = x => x * 72 / 25.4;
+const FORMATS = {carre:[mm(210),mm(210),"21 × 21 cm"], a5:[mm(148),mm(210),"A5"],
+                 a4:[mm(210),mm(297),"A4"]};
+const FOND_PERDU = mm(3), DPI_MINI = 150;
+const C_ENCRE = [0.11,0.21,0.27], C_TEXTE = [0.13,0.19,0.23], C_OCRE = [0.79,0.54,0.24],
+      C_GRIS = [0.47,0.52,0.55], C_PAPIER = [0.95,0.92,0.85];
+
+/** Place une image dans une boîte en tenant compte de l'orientation Exif. */
+function matriceImage(X, Y, W, H, orientation){
+  switch(orientation){
+    case 3: return `${-W} 0 0 ${-H} ${X+W} ${Y+H}`;
+    case 6: return `0 ${-H} ${W} 0 ${X} ${Y+H}`;
+    case 8: return `0 ${H} ${-W} 0 ${X+W} ${Y}`;
+    default: return `${W} 0 0 ${H} ${X} ${Y}`;
+  }
+}
+
+class Composition{
+  constructor(format, fondPerdu, polices){
+    [this.L, this.H, this.nomFormat] = FORMATS[format] || FORMATS.carre;
+    this.b = fondPerdu ? FOND_PERDU : 0;
+    this.p = polices;
+    this.mInt = mm(22); this.mExt = mm(16); this.mHaut = mm(18); this.mBas = mm(20);
+    this.largeur = this.L - this.mInt - this.mExt;
+    this.hauteur = this.H - this.mHaut - this.mBas;
+    this.pages = []; this.images = new Map(); this.ops = null; this.numero = 0; this.y = 0;
+  }
+  nouvellePage(couverture){
+    this.ops = []; this.pages.push(this.ops); this.numero = this.pages.length;
+    if(this.b) this.traitsCoupe();
+    if(couverture) this.rect(0, 0, this.L + 2*this.b, this.H + 2*this.b, C_ENCRE);
+    else this.folio();
+    this.y = this.b + this.mBas + this.hauteur;
+  }
+  get x0(){ return this.b + (this.numero % 2 ? this.mInt : this.mExt); }
+  place(h){ if(this.y - h < this.b + this.mBas) this.nouvellePage(); }
+  folio(){
+    if(this.numero <= 2) return;
+    const t = String(this.numero);
+    this.texte(t, this.b + (this.L - this.p.normal.largeur(t,8))/2, this.b + mm(11),
+               this.p.normal, 8, C_GRIS);
+  }
+  traitsCoupe(){
+    const b = this.b, pw = this.L + 2*b, ph = this.H + 2*b, t = b*0.8;
+    for(const cx of [b, b + this.L]) for(const cy of [b, b + this.H]){
+      this.trait(cx === b ? 0 : pw - t, cy, cx === b ? t : pw, cy, 0.25);
+      this.trait(cx, cy === b ? 0 : ph - t, cx, cy === b ? t : ph, 0.25);
+    }
+  }
+  rect(x,y,l,h,[r,v,b]){ this.ops.push(`q ${r} ${v} ${b} rg ${f(x)} ${f(y)} ${f(l)} ${f(h)} re f Q`); }
+  trait(x1,y1,x2,y2,e=0.7,[r,v,b]=[0,0,0]){
+    this.ops.push(`q ${r} ${v} ${b} RG ${e} w ${f(x1)} ${f(y1)} m ${f(x2)} ${f(y2)} l S Q`); }
+  texte(t,x,y,police,taille,[r,v,b]=C_TEXTE,espace=0){
+    this.ops.push(`BT ${r} ${v} ${b} rg /${police.nom} ${taille} Tf ${f(espace)} Tw `
+      + `1 0 0 1 ${f(x)} ${f(y)} Tm (${echapper(t)}) Tj ET`); }
+  couper(t, police, taille, largeur){
+    const lignes = []; let courante = "";
+    for(const mot of (t||"").split(/\s+/).filter(Boolean)){
+      const essai = courante ? courante + " " + mot : mot;
+      if(police.largeur(essai, taille) <= largeur || !courante) courante = essai;
+      else { lignes.push(courante); courante = mot; }
+    }
+    if(courante) lignes.push(courante);
+    return lignes;
+  }
+  paragraphe(t, police, taille, interligne, couleur = C_TEXTE, justifie = true, apres = 0){
+    for(const morceau of (t||"").split("\n")){
+      const lignes = this.couper(morceau, police, taille, this.largeur);
+      lignes.forEach((ligne, i) => {
+        this.place(interligne);
+        let espace = 0;
+        if(justifie && i < lignes.length - 1){
+          const trous = (ligne.match(/ /g)||[]).length;
+          if(trous) espace = Math.min((this.largeur - police.largeur(ligne,taille))/trous, taille*0.5);
+        }
+        this.texte(ligne, this.x0, this.y - taille*0.82, police, taille, couleur, espace);
+        this.y -= interligne;
+      });
+    }
+    this.y -= apres;
+  }
+  image(cle, x, y, l, h, orientation){
+    let nom = this.images.get(cle);
+    if(!nom){ nom = "Im" + (this.images.size + 1); this.images.set(cle, nom); }
+    this.ops.push(`q ${matriceImage(x, y, l, h, orientation)} cm /${nom} Do Q`);
+  }
+}
+const f = x => Math.round(x*100)/100;
+
+/**
+ * Fabrique le PDF.
+ * jours : [{date, personnes:[nom], entree:{titre,texte}|null, photos:[{cle,l,h,orientation}]}]
+ * lirePhoto(cle) -> Uint8Array du JPEG
+ */
+async function fabriquerLivre(jours, options, polices, lirePhoto){
+  const c = new Composition(options.format || "carre", options.fondPerdu, polices);
+  const avertissements = [];
+  let nbPhotos = 0;
+
+  c.nouvellePage(true);
+  let taille = 34;
+  const titre = options.titre || "Photothèque";
+  while(polices.normal.largeur(titre, taille) > c.L - mm(36) && taille > 14) taille--;
+  c.texte(titre, c.b + (c.L - polices.normal.largeur(titre,taille))/2, c.b + c.H*0.60,
+          polices.normal, taille, C_PAPIER);
+  if(options.sousTitre)
+    c.texte(options.sousTitre, c.b + (c.L - polices.normal.largeur(options.sousTitre,11))/2,
+            c.b + c.H*0.56, polices.normal, 11, [0.79,0.72,0.61]);
+  c.trait(c.b + c.L/2 - mm(18), c.b + c.H*0.42, c.b + c.L/2 + mm(18), c.b + c.H*0.42, 0.8, C_OCRE);
+  c.nouvellePage();                                   // dos de couverture
+
+  let moisCourant = null, premierDuMois = true;
+  for(const j of jours){
+    const cle = j.date.slice(0,7);
+    if(cle !== moisCourant){
+      moisCourant = cle; c.nouvellePage();
+      c.paragraphe(moisLong(cle), polices.normal, 26, 30, C_ENCRE, false, mm(12));
+      premierDuMois = true;
+    }
+    if(!premierDuMois){
+      const avant = c.pages.length;
+      c.place(mm(52));
+      if(c.pages.length === avant){
+        c.y -= mm(4); c.trait(c.x0, c.y, c.x0 + mm(26), c.y, 0.7, C_OCRE); c.y -= mm(8);
+      }
+    }
+    premierDuMois = false;
+    c.place(mm(40));
+    const tete = dateLongue(j.date) + (j.personnes?.length ? " · " + j.personnes.join(", ") : "");
+    c.paragraphe(tete, polices.normal, 8, 11, C_GRIS, false, mm(1));
+    if(j.entree){
+      c.paragraphe(j.entree.titre || "", polices.gras, 14.5, 18, C_ENCRE, false, mm(3));
+      for(const bloc of (j.entree.texte || "").split("\n\n"))
+        if(bloc.trim()) c.paragraphe(bloc.trim(), polices.normal, 10.5, 16, C_TEXTE, true, mm(3));
+    }
+    const photos = options.photos === false ? [] : (j.photos || []);
+    for(let i = 0; i < photos.length; i += 2){
+      const paire = photos.slice(i, i+2);
+      const mesures = paire.map(p => {
+        const tourne = [5,6,7,8].includes(p.orientation||1);
+        return {p, l: tourne ? p.h : p.l, h: tourne ? p.l : p.h};
+      });
+      if(mesures.length === 1){
+        const m = mesures[0];
+        let l = c.largeur, h = l * m.h / m.l;
+        if(h > c.hauteur*0.62){ h = c.hauteur*0.62; l = h * m.l / m.h; }
+        c.place(h + mm(6)); c.y -= mm(4);
+        c.image(m.p.cle, c.x0, c.y - h, l, h, m.p.orientation || 1);
+        c.y -= h + mm(4); nbPhotos++;
+        controlerNettete(avertissements, j, m.p, l);
+      } else {
+        const dispo = c.largeur - mm(4);
+        let h = Math.min(c.hauteur*0.40, ...mesures.map(m => dispo/2 * m.h / m.l));
+        let largeurs = mesures.map(m => h * m.l / m.h);
+        const somme = largeurs.reduce((a,b) => a+b, 0);
+        if(somme > dispo){ const k = dispo/somme; h *= k; largeurs = largeurs.map(l => l*k); }
+        c.place(h + mm(6)); c.y -= mm(4);
+        let x = c.x0;
+        mesures.forEach((m, k) => {
+          c.image(m.p.cle, x, c.y - h, largeurs[k], h, m.p.orientation || 1);
+          controlerNettete(avertissements, j, m.p, largeurs[k]);
+          x += largeurs[k] + mm(4); nbPhotos++;
+        });
+        c.y -= h + mm(4);
+      }
+    }
+    c.y -= mm(4);
+  }
+  if(options.cahiers4 !== false) while(c.pages.length % 4) c.nouvellePage();
+
+  /* assemblage */
+  const doc = new PDF();
+  const ressourcesPolices = [];
+  for(const p of [polices.normal, polices.gras, polices.italique]){
+    const fichier = doc.flux(`/Length1 ${p.brut.length}`, p.brut);
+    const desc = doc.ajouter(`<< /Type /FontDescriptor /FontName /Livre-${p.nom} /Flags 32 `
+      + `/FontBBox [${p.bbox.join(" ")}] /ItalicAngle ${f(p.italique)} /Ascent ${p.ascent} `
+      + `/Descent ${p.descent} /CapHeight ${p.capheight} /StemV 80 /FontFile2 ${fichier} 0 R >>`);
+    const obj = doc.ajouter(`<< /Type /Font /Subtype /TrueType /BaseFont /Livre-${p.nom} `
+      + `/FirstChar 32 /LastChar 255 /Widths [${p.largeurs.join(" ")}] `
+      + `/Encoding /WinAnsiEncoding /FontDescriptor ${desc} 0 R >>`);
+    ressourcesPolices.push(`/${p.nom} ${obj} 0 R`);
+  }
+  const ressourcesImages = [];
+  for(const [cle, nom] of c.images){
+    const brut = await lirePhoto(cle);
+    const d = dimsJpeg(brut);
+    const espace = d.comp === 4 ? "/DeviceCMYK" : d.comp === 1 ? "/DeviceGray" : "/DeviceRGB";
+    const obj = doc.flux(`/Type /XObject /Subtype /Image /Width ${d.l} /Height ${d.h} `
+      + `/ColorSpace ${espace} /BitsPerComponent 8 /Filter /DCTDecode`, brut);
+    ressourcesImages.push(`/${nom} ${obj} 0 R`);
+  }
+  const ressources = doc.ajouter(`<< /Font << ${ressourcesPolices.join(" ")} >> `
+    + `/XObject << ${ressourcesImages.join(" ")} >> /ProcSet [/PDF /Text /ImageC] >>`);
+  const contenus = c.pages.map(ops => doc.flux("", ops.join("\n")));
+  const boite = `[0 0 ${f(c.L + 2*c.b)} ${f(c.H + 2*c.b)}]`;
+  const coupe = `[${f(c.b)} ${f(c.b)} ${f(c.b + c.L)} ${f(c.b + c.H)}]`;
+  const reserve = doc.objets.length + contenus.length + 1;
+  const refs = contenus.map(k => doc.ajouter(`<< /Type /Page /Parent ${reserve} 0 R `
+    + `/MediaBox ${boite} /TrimBox ${coupe} /Resources ${ressources} 0 R /Contents ${k} 0 R >>`));
+  const pages = doc.ajouter(`<< /Type /Pages /Count ${refs.length} `
+    + `/Kids [${refs.map(r => r + " 0 R").join(" ")}] >>`);
+  for(const r of refs)
+    doc.objets[r] = enc.encode(new TextDecoder().decode(doc.objets[r])
+      .replace(`/Parent ${reserve} 0 R`, `/Parent ${pages} 0 R`));
+  const racine = doc.ajouter(`<< /Type /Catalog /Pages ${pages} 0 R >>`);
+  const horo = new Date().toISOString().replace(/[-:T]/g,"").slice(0,14);
+  const infos = doc.ajouter(`<< /Title (${echapper(titre)}) `
+    + `/Producer (Photothèque familiale ${VERSION}) /CreationDate (D:${horo}) >>`);
+  const octets = doc.sortie(racine, infos);
+  return {octets, infos:{pages:c.pages.length, jours:jours.length, photos:nbPhotos,
+    format:c.nomFormat, fondPerdu:!!c.b, poidsMo:Math.round(octets.length/104857.6)/10,
+    avertissements:[...new Set(avertissements)].slice(0,20)}};
+}
+function controlerNettete(avertissements, jour, photo, largeurPt){
+  const px = [5,6,7,8].includes(photo.orientation||1) ? photo.h : photo.l;
+  const dpi = px / (largeurPt/72);
+  if(dpi < DPI_MINI) avertissements.push(
+    `${jour.date} : une photo tire à ${Math.round(dpi)} dpi, netteté faible à l'impression`);
+}
+
+/* ── Règles de sélection : un carnet est une production reliée ────────────── */
+function selection(donnees, regle){
+  let debut, fin;
+  if(regle.type === "mensuel"){ debut = regle.cle + "-01"; fin = regle.cle + "-31"; }
+  else if(regle.type === "annuel"){ debut = regle.cle + "-01-01"; fin = regle.cle + "-12-31"; }
+  else { debut = "0000"; fin = "9999"; }
+  const dansPeriode = d => d >= debut && d <= fin;
+  const photos = (donnees.photos||[]).filter(p => !p.supprime &&
+    (regle.type === "selection" ? (regle.photos||[]).includes(p.id) : dansPeriode(p.date)));
+  const entrees = (donnees.entrees||[]).filter(e => !e.supprime &&
+    (regle.type === "selection" ? photos.some(p => p.date === e.date) : dansPeriode(e.date)));
+  const dates = [...new Set([...photos.map(p => p.date), ...entrees.map(e => e.date)])].sort();
+  const jours = dates.map(date => ({
+    date,
+    personnes: ((donnees.jours||{})[date]?.personnes || [])
+      .map(id => (donnees.famille||[]).find(m => m.id === id)?.nom).filter(Boolean),
+    entree: entrees.find(e => e.date === date) || null,
+    photos: photos.filter(p => p.date === date)
+      .sort((a,b) => (a.heure||"").localeCompare(b.heure||""))
+      .map(p => ({cle:p.id, l:p.l, h:p.h, orientation:p.orientation})),
+  }));
+  return {jours, photos, entrees, debut, fin};
+}
+
+/** Pastille : vert à jour, orange à refaire, rouge fichier absent. */
+function etatCarnet(fiche, donnees){
+  if(!fiche.fichier) return {pastille:"rouge", motifs:["le PDF est introuvable"]};
+  const motifs = [];
+  const s = selection(donnees, fiche.regle);
+  const connues = new Set((fiche.sources?.photos || []));
+  const nouvelles = s.photos.filter(p => !connues.has(p.id));
+  if(nouvelles.length) motifs.push(`${nouvelles.length} photo(s) ajoutée(s) depuis`);
+  const disparues = [...connues].filter(id => !s.photos.some(p => p.id === id));
+  if(disparues.length) motifs.push(`${disparues.length} photo(s) retirée(s)`);
+  for(const src of (fiche.sources?.entrees || [])){
+    const e = s.entrees.find(x => x.id === src.id);
+    if(!e) motifs.push("une entrée a été supprimée");
+    else if(empreinteEntree(e) !== src.sha) motifs.push(`« ${e.titre} » a été modifiée`);
+  }
+  const nouvellesEntrees = s.entrees.filter(e =>
+    !(fiche.sources?.entrees || []).some(src => src.id === e.id));
+  if(nouvellesEntrees.length) motifs.push(`${nouvellesEntrees.length} texte(s) ajouté(s)`);
+  return {pastille: motifs.length ? "orange" : "vert", motifs};
+}
+const empreinteEntree = e => `${e.date}|${e.titre}|${e.texte}`.length + ":" +
+  simpleHash(`${e.date}|${e.titre}|${e.texte}`);
+function simpleHash(t){          // empreinte courte, suffisante pour détecter un changement
+  let h = 0x811c9dc5;
+  for(let i = 0; i < t.length; i++){ h ^= t.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  return h.toString(16);
+}
+
+/** Fusion de deux états : chaque champ porte sa date, le plus récent gagne. */
+function fusionner(a, b){
+  if(!a) return b; if(!b) return a;
+  const out = {v:VERSION, maj: (a.maj||"") > (b.maj||"") ? a.maj : b.maj};
+  out.reglages = ((a.reglages?.maj)||"") > ((b.reglages?.maj)||"")
+    ? a.reglages : (b.reglages || a.reglages);
+  for(const cle of ["photos","entrees","carnets","famille"]){
+    const index = new Map();
+    for(const el of [...(a[cle]||[]), ...(b[cle]||[])]){
+      const ancien = index.get(el.id);
+      if(!ancien || (el.maj||"") > (ancien.maj||"")) index.set(el.id, el);
+    }
+    out[cle] = [...index.values()];
+  }
+  out.jours = {...(a.jours||{})};
+  for(const [d, j] of Object.entries(b.jours||{}))
+    if(!out.jours[d] || (j.maj||"") > (out.jours[d].maj||"")) out.jours[d] = j;
+  return out;
+}
+
+/* ── Ce qu'on envoie dans Drive pour une photo donnée ────────────────────── */
+const COTE_TIRAGE = 1600;
+
+/** Une photo déjà petite n'est pas dupliquée : le tirage EST l'original. */
+function decisionDepot(mesure, reglages){
+  const grande = Math.max(mesure.l || 0, mesure.h || 0) > COTE_TIRAGE;
+  if(!grande) return {tirage:true, original:false, identique:true,
+                      motif:`déjà sous ${COTE_TIRAGE} px`};
+  if(reglages && reglages.originaux === false)
+    return {tirage:true, original:false, identique:false,
+            motif:"originaux non conservés (réglages)"};
+  return {tirage:true, original:true, identique:false, motif:""};
+}
+
+/** Place occupée dans Drive, en octets, tirages et originaux séparés. */
+function placeOccupee(photos){
+  let tirages = 0, originaux = 0, avecOriginal = 0;
+  for(const p of (photos||[])){
+    if(p.supprime) continue;
+    tirages += p.taille || 0;
+    if(p.original && !p.identique){ originaux += p.tailleOriginale || 0; avecOriginal++; }
+    else if(p.identique) avecOriginal++;
+  }
+  return {tirages, originaux, total: tirages + originaux, avecOriginal};
+}
+const enMo = o => Math.round((o||0) / 1048576 * 10) / 10;
+
+if(typeof module !== "undefined") module.exports = {decisionDepot, placeOccupee, enMo,
+  lireExif, dimsJpeg, Police, PDF, Composition, fabriquerLivre, selection, etatCarnet,
+  fusionner, encoder, echapper, matriceImage, empreinteEntree, mm};
+/* ═══ FIN DU MOTEUR ═══════════════════════════════════════════════════════ */
+
+/* ═══ DRIVE : le disque de l'utilisateur ══════════════════════════════════ */
+let JETON = null, EXPIRE = 0, clientJeton = null;
+
+function connexion(interactif = true){
+  return new Promise((resolve, reject) => {
+    if(!window.google?.accounts?.oauth2) return reject(new Error("Google non chargé"));
+    clientJeton = clientJeton || google.accounts.oauth2.initTokenClient({
+      client_id: CONFIG.CLIENT_ID, scope: PORTEES,
+      callback: r => {
+        if(r.error) return reject(new Error(r.error));
+        JETON = r.access_token; EXPIRE = Date.now() + (r.expires_in - 60)*1000;
+        resolve(JETON);
+      },
+    });
+    clientJeton.requestAccessToken({prompt: interactif ? "" : "none"});
+  });
+}
+async function jeton(){
+  if(JETON && Date.now() < EXPIRE) return JETON;
+  return connexion(true);
+}
+async function drive(url, options = {}, essais = 3){
+  const t = await jeton();
+  const r = await fetch(url.startsWith("http") ? url : "https://www.googleapis.com" + url, {
+    ...options, headers: {Authorization: "Bearer " + t, ...(options.headers||{})}});
+  if(r.status === 401){ JETON = null; if(essais > 0) return drive(url, options, essais-1); }
+  if((r.status === 429 || r.status >= 500) && essais > 0){
+    await new Promise(k => setTimeout(k, 800 * (4 - essais)));
+    return drive(url, options, essais - 1);
+  }
+  if(!r.ok) throw new Error(`Drive ${r.status} — ${(await r.text()).slice(0,140)}`);
+  return r;
+}
+
+async function dossierPhotos(){
+  if(S.dossier) return S.dossier;
+  const q = encodeURIComponent(
+    `name='${CONFIG.DOSSIER}' and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+  const r = await (await drive(`/drive/v3/files?q=${q}&fields=files(id,name)`)).json();
+  if(r.files?.length){ S.dossier = r.files[0].id; return S.dossier; }
+  const cree = await (await drive("/drive/v3/files", {method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({name: CONFIG.DOSSIER,
+                          mimeType:"application/vnd.google-apps.folder"})})).json();
+  S.dossier = cree.id;
+  return S.dossier;
+}
+
+async function televerser(blob, nom, parents, type = "image/jpeg"){
+  const metadonnees = JSON.stringify({name: nom, parents});
+  const limite = "-----" + Math.random().toString(36).slice(2);
+  const corps = new Blob([
+    `--${limite}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadonnees}\r\n`,
+    `--${limite}\r\nContent-Type: ${type}\r\n\r\n`, blob, `\r\n--${limite}--\r\n`]);
+  const r = await drive("/upload/drive/v3/files?uploadType=multipart&fields=id,name",
+    {method:"POST", headers:{"Content-Type":`multipart/related; boundary=${limite}`}, body:corps});
+  return (await r.json()).id;
+}
+async function telecharger(id){
+  const r = await drive(`/drive/v3/files/${id}?alt=media`);
+  return new Uint8Array(await r.arrayBuffer());
+}
+
+/* espace privé de l'application : invisible dans le Drive de l'utilisateur */
+async function appdataLire(nom){
+  const q = encodeURIComponent(`name='${nom}'`);
+  const r = await (await drive(
+    `/drive/v3/files?q=${q}&spaces=appDataFolder&fields=files(id,name)`)).json();
+  if(!r.files?.length) return {id:null, contenu:null};
+  const c = await (await drive(`/drive/v3/files/${r.files[0].id}?alt=media`)).json();
+  return {id:r.files[0].id, contenu:c};
+}
+async function appdataEcrire(nom, objet, id){
+  const blob = new Blob([JSON.stringify(objet)], {type:"application/json"});
+  if(id){
+    await drive(`/upload/drive/v3/files/${id}?uploadType=media`,
+      {method:"PATCH", headers:{"Content-Type":"application/json"}, body:blob});
+    return id;
+  }
+  const limite = "-----" + Math.random().toString(36).slice(2);
+  const corps = new Blob([
+    `--${limite}\r\nContent-Type: application/json\r\n\r\n`,
+    JSON.stringify({name:nom, parents:["appDataFolder"]}),
+    `\r\n--${limite}\r\nContent-Type: application/json\r\n\r\n`, blob, `\r\n--${limite}--\r\n`]);
+  const r = await drive("/upload/drive/v3/files?uploadType=multipart&fields=id",
+    {method:"POST", headers:{"Content-Type":`multipart/related; boundary=${limite}`}, body:corps});
+  return (await r.json()).id;
+}
+
+const FICHIER_DONNEES = "photo-donnees.json";
+async function chargerDonnees(){
+  const {id, contenu} = await appdataLire(FICHIER_DONNEES);
+  S.idDonnees = id;
+  S.donnees = contenu || {v:VERSION, maj:new Date().toISOString(), photos:[], entrees:[],
+    carnets:[], jours:{}, reglages:{originaux:true}, famille:[
+      {id:"manon", nom:"Manon", role:"ma femme", couleur:"#D98AA0", maj:""},
+      {id:"elonn", nom:"Elonn", role:"mon fils", couleur:"#7FC0A4", maj:""},
+      {id:"levi", nom:"Levi", role:"mon fils", couleur:"#93ADE0", maj:""},
+      {id:"yona", nom:"Yona", role:"ma fille", couleur:"#E5C158", maj:""},
+      {id:"moi", nom:"Moi", role:"moi", couleur:"#B9A7D8", maj:""}]};
+}
+function reglages(){
+  if(!S.donnees.reglages) S.donnees.reglages = {originaux:true};
+  return S.donnees.reglages;
+}
+
+async function enregistrerDonnees(){
+  // on relit avant d'écrire : deux téléphones ne s'écrasent jamais
+  const {id, contenu} = await appdataLire(FICHIER_DONNEES);
+  S.donnees = fusionner(S.donnees, contenu);
+  S.donnees.maj = new Date().toISOString();
+  S.idDonnees = await appdataEcrire(FICHIER_DONNEES, S.donnees, id || S.idDonnees);
+}
+
+/* vignettes : paquets de 60 dans l'espace privé, comme la Bibliothèque */
+const TAILLE_PAQUET = 60;
+async function paquet(numero){
+  if(S.paquets[numero]) return S.paquets[numero];
+  const nom = `vignettes-${String(numero).padStart(4,"0")}.json`;
+  const {id, contenu} = await appdataLire(nom).catch(() => ({id:null, contenu:null}));
+  S.paquets[numero] = contenu || {};
+  S.idPaquets[numero] = id;
+  return S.paquets[numero];
+}
+async function rangerVignette(photo, dataUrl){
+  const numero = Math.floor((S.donnees.photos.length) / TAILLE_PAQUET);
+  const p = await paquet(numero);
+  p[photo.id] = dataUrl;
+  photo.paquet = numero;
+  S.paquetsSales.add(numero);
+}
+async function viderPaquets(){
+  for(const numero of S.paquetsSales){
+    const nom = `vignettes-${String(numero).padStart(4,"0")}.json`;
+    S.idPaquets[numero] = await appdataEcrire(nom, S.paquets[numero], S.idPaquets[numero]);
+  }
+  S.paquetsSales.clear();
+}
+
+/* ═══ RELAIS : la clé Anthropic n'est jamais ici ══════════════════════════ */
+async function demanderClaude(conversation){
+  if(!CONFIG.RELAIS) throw new Error("relais non configuré (onglet Réglages)");
+  const r = await fetch(CONFIG.RELAIS.replace(/\/$/,"") + "/ecrire", {
+    method:"POST", headers:{"Content-Type":"application/json",
+      Authorization:"Bearer " + await jeton()},
+    body: JSON.stringify({conversation, famille: S.donnees.famille})});
+  const j = await r.json();
+  if(!r.ok || j.erreur) throw new Error(j.erreur || `relais ${r.status}`);
+  return j;
+}
+
+/* ═══ INTERFACE ═══════════════════════════════════════════════════════════ */
+const S = {
+  pret:false, onglet:"photos", donnees:null, idDonnees:null, dossier:null,
+  paquets:{}, idPaquets:{}, paquetsSales:new Set(),
+  mois:new Date().toISOString().slice(0,7), selection:new Set(),
+  conversation:[], date:new Date().toISOString().slice(0,10), relance:true,
+  occupe:false, avancement:null, entree:null, bilan:null, urls:new Map(),
+};
+const ONGLETS = [["photos","Photos","var(--photos)"], ["ecrire","Écrire","var(--ecrire)"],
+  ["carnets","Carnets","var(--carnets)"], ["famille","Famille","var(--famille)"],
+  ["reglages","Réglages","var(--reglages)"]];
+const $ = s => document.querySelector(s);
+const ech = t => (t||"").replace(/[&<>"]/g, c =>
+  ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const membre = id => S.donnees?.famille.find(m => m.id === id);
+const photosDuMois = () => (S.donnees?.photos||[])
+  .filter(p => !p.supprime && (p.date||"").startsWith(S.mois));
+
+function toast(msg, err){
+  document.querySelectorAll(".toast").forEach(t => t.remove());
+  const d = document.createElement("div");
+  d.className = "toast" + (err ? " err" : ""); d.textContent = msg;
+  document.body.appendChild(d); setTimeout(() => d.remove(), err ? 7000 : 3500);
+}
+
+function render(){
+  if(!S.pret) return $("#racine").innerHTML = `<div class="accueil">
+    <h1>Photothèque familiale</h1>
+    <p class="sous">Déposez les photos de la famille depuis votre téléphone, rangez-les par
+       journée, dites qui était là, racontez en deux lignes — et fabriquez le carnet
+       imprimable du mois ou de l’année.</p>
+    <p class="sous" style="text-align:left">
+      Les photos et les carnets sont rangés dans <b>votre</b> Google Drive, dans un dossier
+      « Photothèque » que vous pouvez ouvrir et déplacer vous-même. Les textes et les
+      étiquettes vont dans l’espace privé de l’application. Rien n’est conservé ailleurs :
+      il n’existe aucune base de données centrale, aucune publicité, aucun traqueur.
+      L’application ne demande que l’accès aux fichiers qu’elle crée elle-même : elle ne
+      peut pas lire le reste de votre Drive.</p>
+    <button class="bouton fort" data-a="connexion">Se connecter avec Google</button>
+    <p class="sous" style="margin-top:20px">
+      <a href="confidentialite.html" style="color:var(--lampe)">Règles de confidentialité</a>
+      &nbsp;·&nbsp;
+      <a href="conditions.html" style="color:var(--lampe)">Conditions d’utilisation</a></p></div>`;
+
+  const vues = {photos:vuePhotos, ecrire:vueEcrire, carnets:vueCarnets,
+                famille:vueFamille, reglages:vueReglages};
+  $("#racine").innerHTML = `
+    <div class="haut">
+      <div class="rang1"><h1 class="marque">Photothèque</h1>
+        <button class="mini" data-a="deposer">＋ Déposer</button></div>
+      <nav class="onglets">${ONGLETS.map(([id,nom,c]) =>
+        `<button class="onglet" data-a="onglet" data-id="${id}" style="--c:${c}"
+          aria-current="${S.onglet===id}">${nom}</button>`).join("")}</nav>
+    </div>
+    <main class="page">${(vues[S.onglet]||vuePhotos)()}</main>
+    ${S.avancement ? `<div class="barrebas"><span style="flex:1">${ech(S.avancement.texte)}</span>
+      <div class="jauge" style="width:120px"><i style="width:${S.avancement.part}%"></i></div></div>` : ""}`;
+  for(const img of document.querySelectorAll("img[data-vignette]")){
+    const src = S.urls.get(img.dataset.vignette);
+    if(src) img.src = src;
+  }
+}
+
+function vuePhotos(){
+  if(S.photo) return vuePhoto();
+  const photos = photosDuMois();
+  const jours = {};
+  for(const p of photos) (jours[p.date] = jours[p.date] || []).push(p);
+  const dates = Object.keys(jours).sort().reverse();
+  const total = (S.donnees.photos||[]).filter(p => !p.supprime).length;
+  return `
+  <div class="mois-nav">
+    <button class="mini" data-a="mois" data-pas="-1">‹</button>
+    <b>${moisLong(S.mois + "-01")}</b>
+    <button class="mini" data-a="mois" data-pas="1">›</button>
+    <button class="mini" data-a="mode-choisir"
+      aria-pressed="${S.modeChoix}" style="${S.modeChoix
+        ? "background:var(--lampe); color:#17222B; border-color:var(--lampe)" : ""}"
+      >${S.modeChoix ? "Choix en cours" : "Choisir"}</button>
+  </div>
+  <p class="sous" style="text-align:center">${photos.length} photo${photos.length>1?"s":""} ce mois-ci
+     · ${total} en tout${S.selection.size ? ` · ${S.selection.size} sélectionnée(s)` : ""}</p>
+  ${S.selection.size ? `<div class="ligne" style="justify-content:center">
+    <button class="bouton" data-a="carnet-selection">Faire un carnet de la sélection</button>
+    <button class="mini" data-a="vider-selection">Annuler la sélection</button></div>` : ""}
+  ${dates.length ? dates.map(d => `
+    <section class="jour">
+      <div class="jour-tete">
+        <span class="jour-date">${dateLongue(d)}</span>
+        <span class="sous" style="margin:0">${jours[d].length} photo${jours[d].length>1?"s":""}</span>
+        <span style="flex:1"></span>
+        <button class="mini" data-a="etiqueter" data-date="${d}">Qui est là ?</button>
+        <button class="mini" data-a="raconter" data-date="${d}">Raconter</button>
+      </div>
+      <div class="ligne" style="margin-bottom:6px">${
+        ((S.donnees.jours[d]?.personnes)||[]).map(id => { const m = membre(id);
+          return m ? `<span class="puce" style="border-color:${m.couleur}; color:${m.couleur}">${ech(m.nom)}</span>`:""
+        }).join("")}
+        ${(S.donnees.entrees||[]).some(e => e.date === d && !e.supprime)
+          ? `<span class="puce" style="border-color:var(--ecrire); color:var(--ecrire)">texte</span>`:""}</div>
+      <div class="grille">${jours[d].map(p => `
+        <button class="vignette" data-a="choisir" data-id="${p.id}"
+          aria-pressed="${S.selection.has(p.id)}">
+          <img data-vignette="${p.id}" alt="${ech(p.nom||"")}" loading="lazy">
+          <span class="coche">✓</span></button>`).join("")}</div>
+    </section>`).join("")
+  : `<p class="vide">Aucune photo ce mois-ci.<br>Appuie sur « Déposer » pour en ajouter.</p>`}`;
+}
+
+function vuePhoto(){
+  const p = (S.donnees.photos||[]).find(x => x.id === S.photo);
+  if(!p) return `<p class="vide">Photo introuvable.</p>`;
+  const grand = S.urls.get("grand:" + p.id);
+  const original = p.original && !p.identique;
+  return `<div class="visio">
+    <div class="ligne" style="padding:8px 12px">
+      <button class="mini" data-a="fermer-photo">‹ Retour</button>
+      <span style="flex:1"></span>
+      <span class="sous" style="margin:0">${dateLongue(p.date)}${p.heure ? " · " + p.heure : ""}</span>
+    </div>
+    <div class="visio-image">${grand
+      ? `<img src="${grand}" alt="${ech(p.nom||"")}"
+           style="transform:rotate(${{3:180,6:90,8:270}[p.orientation]||0}deg)">`
+      : `<span class="sous">Chargement…</span>`}</div>
+    <div class="visio-bas">
+      <p class="sous" style="margin:0 0 10px">
+        ${ech(p.nom||"")} · tirage ${p.l}×${p.h} (${enMo(p.taille)} Mo)
+        ${p.identique ? " · l’original est ce tirage (photo déjà petite)"
+          : original ? ` · original ${p.lOrig}×${p.hOrig} (${enMo(p.tailleOriginale)} Mo)`
+          : " · <b style=\"color:var(--orange)\">original non conservé</b>"}</p>
+      <div class="ligne">
+        ${original || p.identique
+          ? `<button class="bouton fort" data-a="telecharger" data-id="${p.id}"
+               data-quoi="original">Télécharger en qualité d’origine</button>` : ""}
+        <button class="bouton" data-a="telecharger" data-id="${p.id}"
+          data-quoi="tirage">Télécharger le tirage</button>
+        <span style="flex:1"></span>
+        <button class="mini" data-a="retirer-photo" data-id="${p.id}">Retirer</button>
+      </div>
+    </div></div>`;
+}
+
+function vueEcrire(){
+  const duJour = (S.donnees.photos||[]).filter(p => p.date === S.date && !p.supprime);
+  const existante = (S.donnees.entrees||[]).find(e => e.date === S.date && !e.supprime);
+  return `
+  <h2 class="titre">Raconter</h2>
+  <label class="champ">Jour<input type="date" id="date" data-a="date" value="${S.date}"></label>
+  <p class="sous">${duJour.length} photo${duJour.length>1?"s":""} ce jour-là${
+    existante ? " · un texte existe déjà, il sera remplacé et l’ancien archivé" : ""}</p>
+  <label class="ligne" style="margin-bottom:8px"><input type="checkbox" data-a="relance"
+    ${S.relance?"checked":""}> <span class="sous" style="margin:0">Claude me relance</span></label>
+  ${S.conversation.length ? `<div class="fil">${S.conversation.map(m =>
+    `<div class="${m.role==="assistant"?"claude":"moi"}"><div class="bulle">${ech(m.texte)}</div></div>`
+    ).join("")}${S.attente ? `<div class="claude"><div class="bulle">…</div></div>`:""}</div>` : ""}
+  <div class="carte">
+    <textarea class="saisie" id="saisie" data-a="saisie"
+      placeholder="Ce qui s’est passé, ce qui a été dit…"></textarea>
+    <div class="ligne"><button class="mini" data-a="envoyer">Envoyer</button>
+      <span style="flex:1"></span>
+      <button class="bouton fort" data-a="garder"
+        ${S.conversation.length?"":"disabled"}>${S.occupe?"…":"Garder dans la photothèque"}</button></div>
+  </div>
+  ${existante ? `<div class="carte"><b style="font-family:var(--serif)">${ech(existante.titre)}</b>
+    <div class="entree-texte" style="margin-top:8px">${ech(existante.texte)}</div></div>`:""}`;
+}
+
+function vueCarnets(){
+  const cle = S.mois, annee = S.mois.slice(0,4);
+  return `
+  <h2 class="titre">Carnets</h2>
+  <p class="sous">Un carnet garde la trace des photos et des textes qui l’ont produit.
+     S’ils bougent, sa pastille passe à l’orange.</p>
+  <div class="ligne">
+    <button class="bouton" data-a="carnet" data-type="mensuel" data-cle="${cle}">
+      Carnet de ${moisLong(cle + "-01")}</button>
+    <button class="bouton" data-a="carnet" data-type="annuel" data-cle="${annee}">
+      Carnet de l’année ${annee}</button>
+  </div>
+  ${S.bilan ? `<div class="bilan"><b>${S.bilan.pages} pages</b> · ${S.bilan.jours} jours ·
+    ${S.bilan.photos} photos · ${S.bilan.format} · ${S.bilan.poidsMo} Mo
+    ${S.bilan.avertissements?.length ? `<ul>${S.bilan.avertissements.map(a =>
+      `<li>${ech(a)}</li>`).join("")}</ul>`:""}</div>`:""}
+  ${(S.donnees.carnets||[]).filter(c => !c.supprime).map(c => {
+    const e = etatCarnet(c, S.donnees);
+    return `<div class="carte"><div class="ligne">
+      <span class="pastille" style="background:var(--${e.pastille})"></span>
+      <b style="font-family:var(--serif); font-size:16px">${ech(c.titre)}</b>
+      <span class="sous" style="margin:0">${c.pages} pages · ${c.photos} photos</span>
+      <span style="flex:1"></span>
+      <button class="mini" data-a="ouvrir-carnet" data-id="${c.id}">Ouvrir</button>
+      <button class="mini" data-a="refaire" data-id="${c.id}">Refaire</button></div>
+      ${e.motifs.length ? `<p class="sous" style="margin:8px 0 0; color:var(--orange)">
+        ${e.motifs.map(ech).join(" · ")}</p>`:""}</div>`;
+  }).join("") || `<p class="vide">Aucun carnet pour l’instant.</p>`}`;
+}
+
+function vueFamille(){
+  return `<h2 class="titre">La famille</h2>
+  <p class="sous">Les prénoms servent à étiqueter les journées et à filtrer.</p>
+  <div class="carte" id="fam">${(S.donnees.famille||[]).map(m => `
+    <div class="ligne" style="margin-top:8px" data-id="${m.id}">
+      <input type="color" value="${m.couleur}" style="width:36px; height:36px">
+      <input value="${ech(m.nom)}" placeholder="Prénom" style="flex:1; background:var(--fond3);
+        border:1px solid var(--trait); border-radius:8px; padding:8px 10px">
+      <input value="${ech(m.role||"")}" placeholder="lien" style="flex:1; background:var(--fond3);
+        border:1px solid var(--trait); border-radius:8px; padding:8px 10px"></div>`).join("")}</div>
+  <div class="ligne" style="margin-top:12px">
+    <button class="bouton" data-a="ajouter-membre">Ajouter</button>
+    <span style="flex:1"></span>
+    <button class="bouton fort" data-a="garder-famille">Enregistrer</button></div>`;
+}
+
+function vueReglages(){
+  const photos = (S.donnees.photos||[]).filter(p => !p.supprime);
+  const place = placeOccupee(S.donnees.photos);
+  const sansOriginal = photos.length - place.avecOriginal;
+  return `<h2 class="titre">Réglages</h2>
+  <p class="sous">Version ${VERSION} · ${photos.length} photos ·
+     ${enMo(place.total)} Mo dans ton Drive</p>
+  <div class="carte">
+    <b>Qualité conservée</b>
+    <label class="ligne" style="margin-top:10px"><input type="checkbox" data-a="originaux"
+      ${reglages().originaux !== false ? "checked" : ""}>
+      <span>Garder aussi la photo d’origine</span></label>
+    <p class="sous" style="margin-top:8px">
+      Le tirage 1600 px sert à afficher et à imprimer : il suffit pour un livre.
+      L’original ne se télécharge qu’à la demande, depuis la photo.
+      Une photo déjà sous 1600 px n’est pas dupliquée.</p>
+    <table style="width:100%; margin-top:10px; font-size:13px">
+      <tr><td>Tirages 1600 px</td><td style="text-align:right">${enMo(place.tirages)} Mo</td></tr>
+      <tr><td>Originaux (${place.avecOriginal} photos)</td>
+          <td style="text-align:right">${enMo(place.originaux)} Mo</td></tr>
+      <tr><td><b>Total</b></td><td style="text-align:right"><b>${enMo(place.total)} Mo</b></td></tr>
+    </table>
+    ${sansOriginal ? `<p class="sous" style="margin-top:8px; color:var(--orange)">
+      ${sansOriginal} photo(s) sans original : déposées avant, ou pendant que l’option
+      était décochée. Les redéposer ajoutera l’original.</p>` : ""}
+    <p class="sous" style="margin-top:8px">
+      Drive gratuit : 15 Go, partagés avec le reste de ton compte. Au-delà,
+      Google One 100 Go coûte environ 2 € par mois.</p>
+  </div>
+  <div class="carte">
+    <label class="champ">Adresse du relais (la clé Anthropic y vit, jamais ici)
+      <input id="r-relais" value="${ech(CONFIG.RELAIS)}" placeholder="https://…workers.dev"></label>
+    <p class="sous" style="margin-top:10px">Le relais se règle dans le fichier index.html
+       (objet CONFIG) pour que tous tes appareils l’aient. Ce champ ne vaut que pour cet appareil.</p>
+    <div class="ligne" style="margin-top:10px">
+      <button class="bouton" data-a="garder-relais">Garder pour cet appareil</button>
+      <button class="mini" data-a="deconnexion">Se déconnecter</button></div>
+  </div>
+  <div class="carte"><b>Pages publiques</b>
+    <p class="sous" style="margin-top:8px">
+      <a href="confidentialite.html" style="color:var(--lampe)">Règles de confidentialité</a>
+      &nbsp;·&nbsp;
+      <a href="conditions.html" style="color:var(--lampe)">Conditions d’utilisation</a></p></div>
+  <div class="carte"><b>Où sont tes affaires</b>
+    <p class="sous" style="margin-top:8px">
+      Les photos et les carnets : dossier « ${ech(CONFIG.DOSSIER)} » de ton Drive, visible et
+      déplaçable par toi. Les textes, les étiquettes et les fiches : espace privé de
+      l’application, invisible mais rattaché à ton compte. Rien sur un serveur tiers.
+      L’application ne demande que les autorisations « fichiers créés par l’app » et
+      « espace privé » : elle ne peut pas lire le reste de ton Drive.</p></div>`;
+}
+
+/* ── actions ─────────────────────────────────────────────────────────────── */
+const ACTIONS = {
+  connexion: async () => { await connexion(true); await demarrerSession(); },
+  deconnexion: () => { JETON = null; S.pret = false; render(); },
+  onglet: (el) => { S.onglet = el.dataset.id; S.bilan = null; render(); },
+  mois: (el) => {
+    const d = new Date(S.mois + "-01T12:00:00");
+    d.setMonth(d.getMonth() + Number(el.dataset.pas));
+    S.mois = d.toISOString().slice(0,7); render(); chargerVignettes();
+  },
+  deposer: () => $("#fichiers").click(),
+  "mode-choisir": () => { S.modeChoix = !S.modeChoix; if(!S.modeChoix) S.selection.clear();
+                          render(); },
+  choisir: async (el) => {
+    const id = el.dataset.id;
+    if(S.modeChoix){
+      S.selection.has(id) ? S.selection.delete(id) : S.selection.add(id);
+      return render();
+    }
+    S.photo = id; render();
+    if(!S.urls.has("grand:" + id)){
+      try{
+        const octets = await telecharger(id);
+        S.urls.set("grand:" + id,
+          URL.createObjectURL(new Blob([octets], {type:"image/jpeg"})));
+      }catch(e){ toast(e.message, true); }
+      render();
+    }
+  },
+  "fermer-photo": () => { S.photo = null; render(); },
+  telecharger: async (el) => {
+    const p = (S.donnees.photos||[]).find(x => x.id === el.dataset.id);
+    const original = el.dataset.quoi === "original";
+    const id = original ? (p.original || p.id) : p.id;
+    toast("Préparation du téléchargement…");
+    const octets = await telecharger(id);
+    const nom = original ? p.nom : p.nom.replace(/\.\w+$/,"") + "-1600.jpg";
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([octets]));
+    a.download = nom; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 8000);
+    toast(`${nom} téléchargée (${enMo(octets.length)} Mo).`);
+  },
+  "retirer-photo": async (el) => {
+    if(el.dataset.sur !== "1"){ el.dataset.sur = "1"; el.textContent = "Confirmer";
+      el.style.color = "var(--alerte)"; return; }
+    const p = (S.donnees.photos||[]).find(x => x.id === el.dataset.id);
+    p.supprime = true; p.maj = new Date().toISOString();
+    await enregistrerDonnees();
+    S.photo = null; render();
+    toast("Photo retirée de la photothèque. Le fichier reste dans ton Drive.");
+  },
+  "originaux": async (el) => {
+    reglages().originaux = el.checked;
+    reglages().maj = new Date().toISOString();
+    await enregistrerDonnees(); render();
+    toast(el.checked ? "Les prochains dépôts garderont l’original."
+                     : "Les prochains dépôts ne garderont que le tirage 1600 px.");
+  },
+  "vider-selection": () => { S.selection.clear(); render(); },
+  etiqueter: (el) => etiqueterJour(el.dataset.date),
+  raconter: (el) => { S.date = el.dataset.date; S.onglet = "ecrire"; S.conversation = []; render(); },
+  date: (el) => { S.date = el.value; },
+  relance: (el) => { S.relance = el.checked; },
+  envoyer: () => envoyer(),
+  garder: () => garderEntree(),
+  carnet: (el) => fabriquer({type: el.dataset.type, cle: el.dataset.cle}),
+  "carnet-selection": () => fabriquer({type:"selection", photos:[...S.selection]}),
+  refaire: (el) => {
+    const c = (S.donnees.carnets||[]).find(x => x.id === el.dataset.id);
+    if(c) fabriquer(c.regle, c);
+  },
+  "ouvrir-carnet": (el) => {
+    const c = (S.donnees.carnets||[]).find(x => x.id === el.dataset.id);
+    if(c?.fichier) window.open(`https://drive.google.com/file/d/${c.fichier}/view`, "_blank");
+  },
+  "ajouter-membre": () => {
+    S.donnees.famille.push({id:"m" + Date.now(), nom:"", role:"", couleur:"#8FA6B2", maj:""});
+    render();
+  },
+  "garder-famille": async () => {
+    const maj = new Date().toISOString();
+    S.donnees.famille = [...document.querySelectorAll("#fam .ligne")].map(l => {
+      const [c,n,r] = l.querySelectorAll("input");
+      return {id:l.dataset.id, nom:n.value.trim(), role:r.value.trim(), couleur:c.value, maj};
+    }).filter(m => m.nom);
+    await enregistrerDonnees(); render(); toast("Famille enregistrée.");
+  },
+  "garder-relais": () => {
+    CONFIG.RELAIS = $("#r-relais").value.trim();
+    try{ localStorage.setItem("relais", CONFIG.RELAIS); }catch{}
+    toast("Relais enregistré pour cet appareil.");
+  },
+};
+document.addEventListener("click", e => {
+  const el = e.target.closest("[data-a]");
+  if(!el) return;
+  const f = ACTIONS[el.dataset.a];
+  if(f){ e.preventDefault(); Promise.resolve(f(el)).catch(err => toast(err.message, true)); }
+});
+document.addEventListener("change", e => {
+  const el = e.target.closest("[data-a]");
+  if(el && ["date","relance","originaux"].includes(el.dataset.a)) ACTIONS[el.dataset.a](el);
+});
+
+/* ── dépôt des photos ────────────────────────────────────────────────────── */
+async function mesurer(fichier){
+  const bmp = await createImageBitmap(fichier);
+  const m = {l:bmp.width, h:bmp.height, bmp};
+  return m;
+}
+async function reduire(mesure, max, qualite){
+  const k = Math.min(1, max / Math.max(mesure.l, mesure.h));
+  const c = document.createElement("canvas");
+  c.width = Math.round(mesure.l*k); c.height = Math.round(mesure.h*k);
+  c.getContext("2d").drawImage(mesure.bmp, 0, 0, c.width, c.height);
+  return new Promise(ok => c.toBlob(b => ok(b), "image/jpeg", qualite));
+}
+const empreinte = async (octets) => {
+  const h = await crypto.subtle.digest("SHA-256", octets);
+  return [...new Uint8Array(h)].map(o => o.toString(16).padStart(2,"0")).join("");
+};
+
+async function deposer(fichiers){
+  const dossier = await dossierPhotos();
+  let n = 0, doublons = 0, sansOriginal = 0;
+  for(const fichier of fichiers){
+    n++;
+    S.avancement = {texte:`Dépôt ${n} / ${fichiers.length}`,
+                    part: Math.round(n/fichiers.length*100)};
+    render();
+    try{
+      if(!fichier.type.startsWith("image/")){ toast(`${fichier.name} : pas une image`, true); continue; }
+      const brut = new Uint8Array(await fichier.arrayBuffer());
+      const sha = await empreinte(brut);
+      if((S.donnees.photos||[]).some(p => p.sha === sha && !p.supprime)){ doublons++; continue; }
+      const exif = lireExif(brut);
+      const mesure = await mesurer(fichier);
+      const quoi = decisionDepot(mesure, reglages());
+      const tirage = await reduire(mesure, 1600, 0.85);
+      const octetsTirage = new Uint8Array(await tirage.arrayBuffer());
+      const d = dimsJpeg(octetsTirage);
+      const base = fichier.name.replace(/\.\w+$/,"");
+      const id = await televerser(tirage, base + ".jpg", [dossier]);
+      const photo = {id, sha, nom:fichier.name, taille:tirage.size,
+        date: exif.date || new Date(fichier.lastModified).toISOString().slice(0,10),
+        heure: exif.heure || "", orientation: exif.orientation || 1,
+        l: d.l, h: d.h, lOrig: mesure.l, hOrig: mesure.h,
+        identique: quoi.identique, original: quoi.identique ? id : null,
+        tailleOriginale: quoi.identique ? tirage.size : 0,
+        ajout: new Date().toISOString(), maj: new Date().toISOString()};
+      S.donnees.photos.push(photo);
+      if(quoi.original){
+        S.avancement = {texte:`Original ${n} / ${fichiers.length}`,
+                        part: Math.round(n/fichiers.length*100)};
+        render();
+        try{
+          photo.original = await televerser(fichier, base + "-original" +
+            (fichier.name.match(/\.\w+$/)?.[0] || ".jpg"), [dossier],
+            fichier.type || "image/jpeg");
+          photo.tailleOriginale = fichier.size;
+        }catch(e){
+          sansOriginal++;
+          toast(`${fichier.name} : tirage gardé, original refusé (${e.message})`, true);
+        }
+      }
+      const vignette = await reduire(mesure, 320, 0.7);
+      await rangerVignette(photo, await enDataUrl(vignette));
+      S.urls.set(id, await enDataUrl(vignette));
+    }catch(e){ toast(`${fichier.name} : ${e.message}`, true); }
+  }
+  await viderPaquets();
+  await enregistrerDonnees();
+  S.avancement = null;
+  if(n) S.mois = (S.donnees.photos.at(-1)?.date || S.mois).slice(0,7);
+  render();
+  toast(`${n - doublons} photo(s) ajoutée(s)`
+    + (doublons ? `, ${doublons} doublon(s) ignoré(s)` : "")
+    + (sansOriginal ? `, ${sansOriginal} sans original` : "") + ".");
+}
+const enDataUrl = blob => new Promise(ok => {
+  const l = new FileReader(); l.onload = () => ok(l.result); l.readAsDataURL(blob); });
+
+async function chargerVignettes(){
+  const manquantes = photosDuMois().filter(p => !S.urls.has(p.id));
+  const numeros = [...new Set(manquantes.map(p => p.paquet).filter(n => n !== undefined))];
+  for(const numero of numeros){
+    const p = await paquet(numero);
+    for(const photo of manquantes) if(p[photo.id]) S.urls.set(photo.id, p[photo.id]);
+  }
+  render();
+}
+
+/* ── étiquetage d'une journée ────────────────────────────────────────────── */
+function etiqueterJour(date){
+  const jour = S.donnees.jours[date] || {personnes:[], note:""};
+  const choix = S.donnees.famille.map((m,i) => `${i+1}. ${m.nom}`).join("   ");
+  const reponse = prompt(`Qui est sur les photos du ${dateLongue(date)} ?\n${choix}\n`
+    + `Numéros séparés par des espaces :`,
+    (jour.personnes||[]).map(id => S.donnees.famille.findIndex(m => m.id === id) + 1).join(" "));
+  if(reponse === null) return;
+  const personnes = reponse.split(/\s+/).map(n => S.donnees.famille[+n - 1]?.id).filter(Boolean);
+  S.donnees.jours[date] = {personnes, note:jour.note || "", maj:new Date().toISOString()};
+  enregistrerDonnees().then(() => { render(); toast("Journée étiquetée."); });
+}
+
+/* ── écriture ────────────────────────────────────────────────────────────── */
+async function envoyer(){
+  const texte = ($("#saisie")?.value || "").trim();
+  if(!texte) return;
+  S.conversation.push({role:"user", texte});
+  $("#saisie").value = "";
+  if(!S.relance || !CONFIG.RELAIS){ render(); return; }
+  S.attente = true; render();
+  try{
+    const r = await demanderClaude(S.conversation);
+    S.conversation.push({role:"assistant", texte:r.texte});
+  }catch(e){ toast("Pas de réponse (" + e.message + ") — ton texte est gardé.", true); }
+  S.attente = false; render();
+}
+
+async function garderEntree(){
+  if(S.occupe) return;
+  S.occupe = true; render();
+  try{
+    const brut = S.conversation.filter(m => m.role === "user").map(m => m.texte).join("\n\n");
+    let titre = "", texte = brut;
+    if(CONFIG.RELAIS){
+      try{
+        const r = await demanderClaude([...S.conversation,
+          {role:"user", texte:`__REDIGER__ ${S.date}`}]);
+        if(r.titre){ titre = r.titre; texte = r.texte || brut; }
+      }catch(e){ toast("Rédaction automatique indisponible : texte brut gardé.", true); }
+    }
+    if(!titre) titre = (texte.split("\n")[0] || "Journée").slice(0,60);
+    const ancienne = S.donnees.entrees.find(e => e.date === S.date && !e.supprime);
+    if(ancienne){
+      ancienne.versions = [...(ancienne.versions||[]),
+        {temps:ancienne.maj, titre:ancienne.titre, texte:ancienne.texte}];
+      Object.assign(ancienne, {titre, texte, maj:new Date().toISOString()});
+    } else {
+      S.donnees.entrees.push({id:"e" + Date.now(), date:S.date, titre, texte,
+        conversation:S.conversation, auteur:"moi", maj:new Date().toISOString(), versions:[]});
+    }
+    await enregistrerDonnees();
+    S.conversation = []; S.occupe = false; S.onglet = "photos"; render();
+    toast("Texte gardé.");
+  }catch(e){ S.occupe = false; render(); toast(e.message, true); }
+}
+
+/* ── fabrication d'un carnet ─────────────────────────────────────────────── */
+let POLICES = null;
+async function charherPolices(){
+  if(POLICES) return POLICES;
+  const [n,g,i] = await Promise.all(Object.values(CONFIG.POLICES).map(async u =>
+    new Uint8Array(await (await fetch(u)).arrayBuffer())));
+  POLICES = {normal:new Police(n,"F1"), gras:new Police(g,"F2"), italique:new Police(i,"F3")};
+  return POLICES;
+}
+
+async function fabriquer(regle, fiche){
+  if(S.occupe) return;
+  S.occupe = true;
+  S.avancement = {texte:"Préparation…", part:5}; render();
+  try{
+    const polices = await charherPolices();
+    const s = selection(S.donnees, regle);
+    if(!s.jours.length) throw new Error("rien à mettre dans ce carnet");
+    const cache = new Map();
+    let faites = 0;
+    const lirePhoto = async (id) => {
+      if(cache.has(id)) return cache.get(id);
+      const octets = await telecharger(id);
+      cache.set(id, octets);
+      faites++;
+      S.avancement = {texte:`Photos ${faites} / ${s.photos.length}`,
+                      part: 10 + Math.round(faites/Math.max(1,s.photos.length)*70)};
+      render();
+      return octets;
+    };
+    const titre = regle.type === "mensuel" ? moisLong(regle.cle + "-01")
+                : regle.type === "annuel" ? "Année " + regle.cle : "Carnet choisi";
+    const {octets, infos} = await fabriquerLivre(s.jours,
+      {titre, sousTitre:(S.donnees.famille||[]).filter(m => m.id !== "moi")
+        .map(m => m.nom).join(", "), format:"carre", cahiers4:true}, polices, lirePhoto);
+
+    S.avancement = {texte:"Envoi du PDF dans Drive…", part:90}; render();
+    const dossier = await dossierPhotos();
+    const nom = `carnet-${regle.cle || "selection"}.pdf`;
+    const fichier = await televerser(new Blob([octets], {type:"application/pdf"}), nom,
+                                    [dossier], "application/pdf");
+    const cible = fiche || {id:"c" + Date.now(), regle};
+    Object.assign(cible, {titre, regle, fichier, pages:infos.pages, photos:infos.photos,
+      poidsMo:infos.poidsMo, maj:new Date().toISOString(),
+      versions:[...(fiche?.versions||[]), ...(fiche?.fichier ? [{temps:fiche.maj,
+        fichier:fiche.fichier, pages:fiche.pages}] : [])],
+      sources:{photos:s.photos.map(p => p.id),
+               entrees:s.entrees.map(e => ({id:e.id, sha:empreinteEntree(e)}))}});
+    if(!fiche) S.donnees.carnets.push(cible);
+    await enregistrerDonnees();
+    S.bilan = infos; S.occupe = false; S.avancement = null; S.onglet = "carnets"; render();
+    toast(`Carnet fabriqué : ${infos.pages} pages.`);
+    window.open(`https://drive.google.com/file/d/${fichier}/view`, "_blank");
+  }catch(e){
+    S.occupe = false; S.avancement = null; render(); toast(e.message, true);
+  }
+}
+
+/* ── démarrage ───────────────────────────────────────────────────────────── */
+async function demarrerSession(){
+  await chargerDonnees();
+  S.pret = true;
+  render();
+  await chargerVignettes();
+}
+window.addEventListener("load", async () => {
+  try{ CONFIG.RELAIS = localStorage.getItem("relais") || CONFIG.RELAIS; }catch{}
+  const entree = document.createElement("input");
+  entree.type = "file"; entree.multiple = true; entree.accept = "image/*"; entree.id = "fichiers";
+  entree.hidden = true;
+  entree.onchange = e => { const f = [...e.target.files]; e.target.value = ""; deposer(f); };
+  document.body.appendChild(entree);
+  render();
+  try{ await connexion(false); await demarrerSession(); }catch{ /* première visite */ }
+});
+</script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+</body>
+</html>
