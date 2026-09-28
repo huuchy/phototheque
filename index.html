@@ -96,11 +96,30 @@
     text-shadow:0 1px 3px rgba(0,0,0,.9)}
   .cal-case .marques{position:absolute; bottom:4px; left:5px; display:flex; gap:2px}
   .cal-case .marques i{width:5px; height:5px; border-radius:50%; display:block}
-  .cal-case .ev{position:absolute; top:4px; right:4px; width:6px; height:6px;
-    border-radius:1px; background:var(--ambre)}
+  .cal-case .ev{position:absolute; top:3px; right:3px; min-width:15px; height:15px;
+    padding:0 3px; border-radius:5px; background:var(--ambre); color:#1A1509;
+    font-size:10px; font-weight:700; display:grid; place-items:center}
+  .cal-case.racontee{box-shadow:inset 0 -3px 0 var(--ambre)}
+  .cal-legende{display:grid; gap:7px; padding:14px 14px 0; color:var(--sourd); font-size:12px}
+  .cal-legende div{display:flex; align-items:center; gap:8px}
+  .cal-legende .ex{width:26px; height:26px; border-radius:6px; background:var(--nuit2);
+    border:1px solid var(--bord); position:relative; flex:none}
+  .cal-legende .ex span{position:absolute; font-size:9px; color:#fff}
   .cal-case.aujourdhui{border-color:var(--ambre)}
   .cal-mois{display:flex; gap:14px; align-items:baseline; padding:12px 12px 2px;
     color:var(--sourd); font-size:12.5px}
+  .agenda{margin-top:10px; border-top:1px solid var(--bord)}
+  .agenda-jour{display:flex; gap:12px; width:100%; text-align:left; padding:11px 12px;
+    border-bottom:1px solid var(--nuit3); align-items:flex-start; color:inherit}
+  .agenda-jour:active{background:var(--nuit2)}
+  .agenda-date{width:34px; flex:none; font-family:var(--serif); font-size:19px; line-height:1}
+  .agenda-date small{display:block; font-family:var(--sans); font-size:10.5px;
+    color:var(--sourd); margin-top:2px}
+  .agenda-corps{display:grid; gap:3px; min-width:0}
+  .agenda-ev{font-family:var(--serif); font-size:15.5px; color:var(--ambre)}
+  .agenda-ev small{font-family:var(--sans); font-size:11.5px; color:var(--sourd);
+    margin-left:6px}
+  .agenda-texte{font-size:13.5px; color:var(--clair); opacity:.85}
   .evenement-tete{display:flex; gap:8px; align-items:baseline; padding:10px 14px 6px;
     font-family:var(--serif); font-size:15px; color:var(--ambre)}
   .grille{display:grid; grid-template-columns:repeat(3,1fr); gap:2px; padding:0 2px}
@@ -230,6 +249,18 @@
   .choix-date button{text-align:left; padding:13px 14px; border-radius:12px;
     border:1px solid #DCD2BE; background:#fff}
   .choix-date button[aria-pressed="true"]{border-color:var(--ambre); background:#FDF3E3}
+  .detail-ligne{display:flex; align-items:center; gap:6px; padding:11px 0;
+    border-top:1px solid #E4DCCB; font-size:14.5px}
+  .detail-ligne small{display:block; font-size:12.5px}
+  .detail-texte{margin-top:12px; padding:11px 13px; background:#fff; border-radius:10px;
+    border:1px solid #E4DCCB; font-family:var(--serif); font-size:15px; line-height:1.5}
+  .detail-texte b{display:block; font-weight:400; font-size:17px; margin-bottom:3px}
+  .detail-groupe{border-top:1px solid #E4DCCB}
+  .detail-groupe .detail-ligne{border-top:0}
+  .detail-actions{display:flex; gap:6px; flex-wrap:wrap; padding:0 0 12px}
+  .detail-actions button{font-size:12.5px; padding:6px 11px; border-radius:999px;
+    border:1px solid #DCD2BE; background:#fff; color:var(--encre-sourd)}
+  .detail-actions button:active{background:#F1EAD9}
   .choix-date small{display:block; color:var(--encre-sourd); font-size:12.5px; margin-top:2px}
   .mot{position:fixed; left:50%; bottom:calc(var(--hb) + 14px); transform:translateX(-50%);
     background:#2A2621; color:#F2EDE4; border-radius:10px; padding:11px 16px; z-index:80;
@@ -255,7 +286,7 @@ const CONFIG = {
             gras:"polices/CrimsonText-Bold.ttf",
             italique:"polices/CrimsonText-Italic.ttf"},
 };
-const VERSION = 19;
+const VERSION = 22;
 const PORTEES = "https://www.googleapis.com/auth/drive.file "
               + "https://www.googleapis.com/auth/drive.appdata";
 
@@ -915,9 +946,15 @@ async function dossierPhotos(){
    Les noms de fichiers commencent par la date, pour un tri naturel dans Drive. */
 const MOIS_DOSSIER = m => `${m} ${MOIS[+m.slice(5,7)-1]}`;
 
+/* Un nom de dossier sûr : Drive n'aime ni les barres ni les noms interminables. */
+const nomDossier = t => (t || "").replace(/[\\/]/g, "-").replace(/\s+/g, " ").trim().slice(0, 60);
+
 function cheminPhoto(photo, original){
   const an = photo.date.slice(0,4), mois = photo.date.slice(0,7);
-  const base = [an, MOIS_DOSSIER(mois), photo.date];     // …/2026/2026-09 septembre/2026-09-26
+  // …/2026/2026-09 septembre/2026-09-26/Anniversaire de Yona/
+  const base = [an, MOIS_DOSSIER(mois), photo.date];
+  const ev = photo.evenement && nomDossier(nomEvenement(photo.evenement));
+  if(ev) base.push(ev);
   return original ? [...base, "originaux"] : base;
 }
 const nomFichier = (photo, original) => {
@@ -1088,6 +1125,7 @@ const S = {
   pret:false, onglet:"photos", donnees:null, idDonnees:null, dossier:null,
   paquets:{}, idPaquets:{}, paquetsSales:new Set(), dossiers:{},
   mois:new Date().toISOString().slice(0,7), selection:new Set(), modeChoix:false,
+  vue:"calendrier",
   photo:null, conversation:[], date:new Date().toISOString().slice(0,10), relance:true,
   occupe:false, avancement:null, bilan:null, urls:new Map(), brouillon:"",
 };
@@ -1163,7 +1201,8 @@ function render(){
     + `<div class="ecran">${(vues[S.onglet]||vuePhotos)()}</div>`
     + (S.modeChoix && S.onglet === "photos" ? barreChoix() : barreBasse())
     + (S.avancement ? progres() : "")
-    + (S.feuillet ? feuillet() : "");
+    + (S.feuillet ? feuillet() : "")
+    + (S.detail ? detailJour() : "");
   if(S.onglet === "photos" && !S.photo) posterVignettes();
   if(S.photo) requestAnimationFrame(ajusterVisio);
   const t = $("#saisie"); if(t){ t.value = S.brouillon; ajuster(t); }
@@ -1227,6 +1266,22 @@ function feuillet(){
         <button class="bouton fort" data-a="choisir-fichiers">Choisir les photos</button>
       </div></div>`;
 
+  if(f.type === "renommer") return `<div class="voile" data-a="fermer-feuillet"></div>
+    <div class="feuillet">
+      <h3>Renommer l’événement</h3>
+      <p>Le dossier correspondant sera renommé dans ton Drive, et les
+         ${pluriel(vivantes().filter(p => p.evenement === f.id).length, "photo suivra",
+           "photos suivront")}.</p>
+      <input type="text" data-a="nom-renommer" value="${ech(f.nom || "")}"
+        placeholder="Nom de l’événement"
+        style="width:100%; padding:12px; border-radius:10px; border:1px solid #DCD2BE;
+               background:#fff; color:var(--encre)">
+      <div class="ligne" style="margin-top:16px">
+        <button class="bouton plat" data-a="fermer-feuillet">Annuler</button>
+        <span style="flex:1"></span>
+        <button class="bouton fort" data-a="appliquer-renommage">Renommer</button>
+      </div></div>`;
+
   if(f.type === "evenement") return `<div class="voile" data-a="fermer-feuillet"></div>
     <div class="feuillet">
       <h3>Rattacher à un événement</h3>
@@ -1249,6 +1304,49 @@ function feuillet(){
         <button class="bouton plat" data-a="fermer-feuillet">Annuler</button>
         <span style="flex:1"></span>
         <button class="bouton fort" data-a="appliquer-date">Ranger à cette date</button>
+      </div></div>`;
+}
+
+/** Le détail d'une journée, ouvert depuis le calendrier. */
+function detailJour(){
+  const date = S.detail;
+  const duJour = vivantes().filter(p => p.date === date);
+  const gens = (S.donnees.jours[date]?.personnes || []).map(membre).filter(Boolean);
+  const texte = (S.donnees.entrees||[]).find(e => e.date === date && !e.supprime);
+  const groupes = groupesParEvenement(duJour);
+
+  const ligne = (titre, photos, evId) => `<div class="detail-groupe">
+    <div class="detail-ligne">
+      <span style="flex:1">${ech(titre)}
+        <small class="sourd">${pluriel(photos.length, "photo", "photos")}</small></span>
+      <button class="bouton plat" data-a="voir-groupe" data-date="${date}"
+        data-ev="${evId || ""}">Voir</button>
+      <button class="bouton plat" data-a="dossier-drive" data-id="${photos[0].id}"
+        >Dossier</button>
+    </div>
+    <div class="detail-actions">
+      ${evId ? `<button data-a="renommer-evenement" data-id="${evId}">Renommer</button>
+        <button data-a="carnet-evenement" data-id="${evId}">En faire un carnet</button>
+        <button data-a="detacher-evenement" data-id="${evId}">Détacher</button>`
+      : `<button data-a="creer-evenement-jour" data-date="${date}">Créer un événement</button>`}
+    </div></div>`;
+
+  return `<div class="voile" data-a="fermer-detail"></div>
+    <div class="feuillet">
+      <h3>${jourCourt(date)}</h3>
+      <p>${duJour.length ? pluriel(duJour.length, "photo", "photos") : "aucune photo"}
+         ${gens.length ? " · " + gens.map(m => m.nom).join(", ") : ""}</p>
+      ${groupes.length ? groupes.map(g =>
+        ligne(g.nom || "Sans événement", g.photos,
+              g.photos[0].evenement)).join("") : ""}
+      ${texte ? `<div class="detail-texte"><b>${ech(texte.titre)}</b>
+        <span class="sourd">${ech((texte.texte||"").slice(0,120))}…</span></div>` : ""}
+      <div class="ligne" style="margin-top:16px">
+        <button class="bouton plat" data-a="fermer-detail">Fermer</button>
+        <span style="flex:1"></span>
+        <button class="bouton" data-a="deposer-ce-jour" data-date="${date}">Déposer ici</button>
+        <button class="bouton fort" data-a="raconter-jour" data-date="${date}"
+          >${texte ? "Relire" : "Raconter"}</button>
       </div></div>`;
 }
 
@@ -1343,7 +1441,7 @@ function vuePhotos(){
             >${texte ? "Relire" : "Raconter"}</button></span>
       </div>
       ${groupesParEvenement(jours[d]).map(g => `
-        ${g.nom ? `<div class="evenement-tete">${ech(g.nom)}
+        ${g.nom ? `<div class="evenement-tete" id="g${d}-${g.photos[0].evenement}">${ech(g.nom)}
           <span class="sourd">${g.photos.length}</span></div>` : ""}
         <div class="grille">${g.photos.map(p => `
           <button class="case ${perdue(p.id) ? "manquante" : ""}" data-a="ouvrir"
@@ -1372,6 +1470,35 @@ function groupesParEvenement(photos){
   return groupes;
 }
 
+/** Sous le calendrier : ce qui a un nom. Les événements de chaque journée, et
+    les journées racontées. Une case de 50 pixels ne peut pas les afficher. */
+function agendaDuMois(jours){
+  const textes = new Map((S.donnees.entrees||[]).filter(e => !e.supprime && e.date.startsWith(S.mois))
+    .map(e => [e.date, e.titre]));
+  const dates = [...new Set([
+    ...evenements().filter(e => e.date.startsWith(S.mois)).map(e => e.date),
+    ...textes.keys(),
+  ])].sort();
+  if(!dates.length) return `<p class="cal-mois" style="display:block; padding:14px 12px">
+    Aucun événement nommé ce mois-ci. Tu peux en créer un au moment du dépôt,
+    ou depuis le mode Choisir.</p>`;
+
+  return `<div class="agenda">
+    ${dates.map(d => {
+      const evs = evenementsDuJour(d).map(e => ({...e,
+        nb: vivantes().filter(p => p.evenement === e.id).length}));
+      return `<button class="agenda-jour" data-a="jour-calendrier" data-date="${d}">
+        <span class="agenda-date">${Number(d.slice(8))}
+          <small>${JOURS[new Date(d + "T12:00:00").getDay()].slice(0,3)}</small></span>
+        <span class="agenda-corps">
+          ${evs.map(e => `<span class="agenda-ev">${ech(e.nom)}
+            <small>${pluriel(e.nb, "photo", "photos")}</small></span>`).join("")}
+          ${textes.has(d) ? `<span class="agenda-texte">${ech(textes.get(d))}</span>` : ""}
+        </span></button>`;
+    }).join("")}
+  </div>`;
+}
+
 /** Le mois en calendrier : les jours pleins portent une photo, les jours écrits
     un point ambre, et le nombre de photos en bas à droite. */
 function vueCalendrier(jours){
@@ -1389,17 +1516,17 @@ function vueCalendrier(jours){
     const duJour = jours[date] || [];
     const vignette = duJour.map(p => S.urls.get(p.id)).find(Boolean);
     const gens = (S.donnees.jours[date]?.personnes || []).map(membre).filter(Boolean);
+    const evJour = evenementsDuJour(date).filter(e =>
+      duJour.some(p => p.evenement === e.id));
     cases.push(`<button class="cal-case ${duJour.length ? "pleine" : "creuse"} ${
-      date === auj ? "aujourdhui" : ""}" data-a="jour-calendrier" data-date="${date}"
+      date === auj ? "aujourdhui" : ""} ${textes.has(date) ? "racontee" : ""}" data-a="jour-calendrier" data-date="${date}"
         aria-label="${jourCourt(date)}${duJour.length ? `, ${duJour.length} photos` : ""}">
       ${vignette ? `<img src="${vignette}" alt="">` : ""}
       <span class="num">${j}</span>
       ${duJour.length ? `<span class="nb">${duJour.length}</span>` : ""}
-      ${evenementsDuJour(date).length ? `<span class="ev"
-        title="${ech(evenementsDuJour(date).map(e => e.nom).join(", "))}"></span>` : ""}
+      ${evJour.length ? `<span class="ev">${evJour.length}</span>` : ""}
       <span class="marques">${gens.slice(0,3).map(m =>
-        `<i style="background:${m.couleur}"></i>`).join("")}
-        ${textes.has(date) ? `<i style="background:var(--ambre)"></i>` : ""}</span>
+        `<i style="background:${m.couleur}"></i>`).join("")}</span>
     </button>`);
   }
   const joursPleins = Object.keys(jours).length;
@@ -1411,6 +1538,20 @@ function vueCalendrier(jours){
       <span>${pluriel(joursPleins, "journée en photos", "journées en photos")}</span>
       <span>${pluriel([...textes].filter(d => d.startsWith(S.mois)).length,
         "journée racontée", "journées racontées")}</span></div>
+    <div class="cal-legende">
+      <div><span class="ex"><b style="position:absolute; bottom:2px; right:3px; font-size:9px;
+        font-weight:400; color:#fff">4</b></span> nombre de photos</div>
+      <div><span class="ex"><b style="position:absolute; top:2px; right:2px; font-size:9px;
+        background:var(--ambre); color:#1A1509; border-radius:4px; padding:0 3px"
+        >2</b></span> événements nommés ce jour-là</div>
+      <div><span class="ex"><i style="position:absolute; bottom:4px; left:4px; width:5px;
+        height:5px; border-radius:50%; background:#E5C158; display:block"></i></span>
+        qui était là</div>
+      <div><span class="ex" style="box-shadow:inset 0 -4px 0 var(--ambre)"></span>
+        journée racontée — trait ambre en bas</div>
+      <div><span class="ex" style="border:2px solid var(--ambre)"></span> aujourd’hui</div>
+    </div>
+    ${agendaDuMois(jours)}
   </div>`;
 }
 
@@ -1620,9 +1761,10 @@ function vueReglages(){
     <div class="fiche">
       <b style="font-family:var(--serif); font-size:19px; font-weight:400">Rangement dans Drive</b>
       <p class="chapeau" style="margin:8px 0 0">
-        Chaque photo va dans <i>Photothèque / année / mois / jour</i>, les fichiers d’origine
-        dans un sous-dossier <i>originaux</i>, les carnets dans <i>Carnets</i>. Les noms
-        commencent par la date, pour que Drive les trie tout seul.</p>
+        Chaque photo va dans <i>Photothèque / année / mois / jour</i>, et dans un
+        sous-dossier au nom de l’<i>événement</i> quand elle en a un. Les fichiers d’origine
+        vont dans <i>originaux</i>, les carnets dans <i>Carnets</i>. Les noms commencent par
+        la date, pour que Drive les trie tout seul.</p>
       <label class="ligne" style="margin-top:10px; gap:8px">
         <input type="checkbox" data-a="rangement-auto"
           ${reglages().rangementAuto !== false ? "checked" : ""}>
@@ -1754,10 +1896,13 @@ const ACTIONS = {
     const maj = new Date().toISOString();
     for(const p of vivantes()) if(f.cible.includes(p.id)){ p.evenement = id; p.maj = maj; }
     const n = f.cible.length;
+    const touchees = vivantes().filter(p => f.cible.includes(p.id));
     S.feuillet = null; S.modeChoix = false; S.selection.clear(); render();
     await enregistrerDonnees();
     mot(id ? `${pluriel(n, "photo rattachée", "photos rattachées")} à « ${nomEvenement(id)} ».`
            : `${pluriel(n, "photo détachée", "photos détachées")} de son événement.`);
+    await ranger(touchees);       // les fichiers suivent dans Drive
+    render();
   },
   "dater-photo": (el) => {
     const p = vivantes().find(x => x.id === el.dataset.id);
@@ -1783,19 +1928,88 @@ const ACTIONS = {
     await ranger(vivantes().filter(p => cible.includes(p.id)));
     render();
   },
-  "bascule-vue": () => { S.vue = S.vue === "calendrier" ? "grille" : "calendrier"; render(); },
-  "jour-calendrier": (el) => {
+  "bascule-vue": async () => {
+    S.vue = S.vue === "calendrier" ? "grille" : "calendrier";
+    render();
+    reglages().vue = S.vue; reglages().maj = new Date().toISOString();
+    enregistrerDonnees().catch(() => {});
+  },
+  "jour-calendrier": (el) => { S.detail = el.dataset.date; empiler("detail"); render(); },
+  "fermer-detail": () => { S.detail = null; render(); },
+  "voir-groupe": (el) => {
+    const {date, ev} = el.dataset;
+    S.detail = null; S.vue = "grille"; render();
+    requestAnimationFrame(() => {
+      const cible = document.getElementById(ev ? `g${date}-${ev}` : `j${date}`);
+      cible?.scrollIntoView({block:"start", behavior:"smooth"});
+    });
+  },
+  "dossier-drive": async (el) => {
+    const p = vivantes().find(x => x.id === el.dataset.id);
+    if(!p) return;
+    mot("Ouverture du dossier…");
+    try{
+      const id = await dossierChemin(cheminPhoto(p, false));
+      window.open(`https://drive.google.com/drive/folders/${id}`, "_blank");
+    }catch(e){ mot(e.message, true); }
+  },
+  "renommer-evenement": (el) => {
+    const e = evenements().find(x => x.id === el.dataset.id);
+    S.detail = null;
+    S.feuillet = {type:"renommer", id:e.id, nom:e.nom, date:e.date};
+    render();
+    setTimeout(() => document.querySelector('[data-a="nom-renommer"]')?.select(), 40);
+  },
+  "nom-renommer": (el) => { S.feuillet.nom = el.value; },
+  "appliquer-renommage": async () => {
+    const {id, nom} = S.feuillet;
+    const propre = (nom || "").trim();
+    if(!propre) return mot("Il faut un nom.", true);
+    const e = S.donnees.evenements.find(x => x.id === id);
+    e.nom = propre; e.maj = new Date().toISOString();
+    const touchees = vivantes().filter(p => p.evenement === id);
+    S.feuillet = null; render();
+    await enregistrerDonnees();
+    mot(`Renommé en « ${propre} ».`);
+    await ranger(touchees);       // le dossier Drive suit
+    render();
+  },
+  "detacher-evenement": async (el) => {
+    if(el.dataset.sur !== "1"){ el.dataset.sur = "1"; el.textContent = "Confirmer";
+      el.style.color = "var(--rouge)"; return; }
+    const id = el.dataset.id;
+    const touchees = vivantes().filter(p => p.evenement === id);
+    const maj = new Date().toISOString();
+    for(const p of touchees){ p.evenement = null; p.maj = maj; }
+    const e = S.donnees.evenements.find(x => x.id === id);
+    if(e){ e.supprime = true; e.maj = maj; }
+    S.detail = null; render();
+    await enregistrerDonnees();
+    mot(`${pluriel(touchees.length, "photo détachée", "photos détachées")}. `
+      + `Les fichiers remontent dans le dossier du jour.`);
+    await ranger(touchees);
+    render();
+  },
+  "carnet-evenement": (el) => {
+    S.detail = null; S.onglet = "carnets"; render();
+    fabriquer({type:"evenement", cle:el.dataset.id});
+  },
+  "creer-evenement-jour": (el) => {
     const date = el.dataset.date;
-    const duJour = photosDuMois().filter(p => p.date === date);
-    if(duJour.length){
-      S.vue = "grille"; S.ancre = date; render();
-      requestAnimationFrame(() => {
-        document.getElementById("j" + date)?.scrollIntoView({block:"start"});
-      });
-    } else {
-      S.date = date; S.onglet = "ecrire"; S.conversation = []; S.brouillon = "";
-      empiler("ecrire"); render();
-    }
+    const sansEv = vivantes().filter(p => p.date === date && !p.evenement).map(p => p.id);
+    S.detail = null;
+    S.feuillet = {type:"evenement", date, cible:sansEv, evenement:"__nouveau", nomEvenement:""};
+    render();
+    setTimeout(() => document.querySelector('[data-a="nom-evenement"]')?.focus(), 40);
+  },
+  "raconter-jour": (el) => {
+    S.detail = null; S.date = el.dataset.date; S.onglet = "ecrire";
+    S.conversation = []; S.brouillon = ""; empiler("ecrire"); render();
+  },
+  "deposer-ce-jour": (el) => {
+    S.detail = null;
+    S.feuillet = {type:"depot", date:el.dataset.date, evenement:null};
+    render();
   },
   "plus-photos": () => { S.tranche = (S.tranche || TRANCHE) + TRANCHE; render();
                          chargerVignettes(); },
@@ -2019,6 +2233,7 @@ function empiler(etat){
   try{ history.pushState({app:etat}, ""); }catch{}
 }
 window.addEventListener("popstate", () => {
+  if(S.detail){ S.detail = null; render(); empiler("photos"); return; }
   if(S.photo){ S.photo = null; render(); empiler("photos"); return; }
   if(S.modeChoix){ S.modeChoix = false; S.selection.clear(); render(); empiler("photos"); return; }
   if(S.onglet !== "photos"){ S.onglet = "photos"; render(); empiler("photos"); return; }
@@ -2296,8 +2511,10 @@ async function viderCatalogue(){
 }
 
 /* ── rangement des fichiers déjà déposés ─────────────────────────────────── */
-const VERSION_RANGEMENT = 11;     // change si l'arborescence évolue
-const signatureRange = p => `${p.date}|${p.heure}|${p.nom}|${VERSION_RANGEMENT}`;
+const VERSION_RANGEMENT = 20;     // change si l'arborescence évolue
+// l'événement fait partie du chemin : le renommer ou le changer redéplace les fichiers
+const signatureRange = p =>
+  `${p.date}|${p.heure}|${p.nom}|${p.evenement ? nomEvenement(p.evenement) : ""}|${VERSION_RANGEMENT}`;
 const aRanger = () => vivantes().filter(p => p.range !== signatureRange(p));
 
 const LOT_AUTO = 25;      // au-delà, on préfère demander : c'est long et ça touche le Drive
@@ -2452,6 +2669,7 @@ async function fabriquer(regle, fiche){
 /* ── démarrage ───────────────────────────────────────────────────────────── */
 async function demarrerSession(){
   await chargerDonnees();
+  S.vue = reglages().vue || "calendrier";
   S.pret = true;
   render();
   await chargerVignettes();
