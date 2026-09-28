@@ -220,7 +220,7 @@ const CONFIG = {
             gras:"polices/CrimsonText-Bold.ttf",
             italique:"polices/CrimsonText-Italic.ttf"},
 };
-const VERSION = 9;
+const VERSION = 13;
 const PORTEES = "https://www.googleapis.com/auth/drive.file "
               + "https://www.googleapis.com/auth/drive.appdata";
 
@@ -663,10 +663,31 @@ function controlerNettete(avertissements, jour, photo, largeurPt){
     `${jour.date} : une photo tire à ${Math.round(dpi)} dpi, netteté faible à l'impression`);
 }
 
+/* ── Semaines (du lundi au dimanche) ─────────────────────────────────────── */
+const jourPlus = (iso, n) => {
+  const d = new Date(iso + "T12:00:00");
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0,10);
+};
+/** Lundi de la semaine d'une date : c'est la clé d'un carnet hebdomadaire. */
+function lundiDe(iso){
+  const d = new Date(iso + "T12:00:00");
+  return jourPlus(iso, -((d.getDay() + 6) % 7));
+}
+function titreSemaine(lundi){
+  const dimanche = jourPlus(lundi, 6);
+  const [al, ml, jl] = lundi.split("-").map(Number);
+  const [ad, md, jd] = dimanche.split("-").map(Number);
+  if(ml === md) return `semaine du ${jl} au ${jd} ${MOIS[md-1]} ${ad}`;
+  if(al === ad) return `semaine du ${jl} ${MOIS[ml-1]} au ${jd} ${MOIS[md-1]} ${ad}`;
+  return `semaine du ${jl} ${MOIS[ml-1]} ${al} au ${jd} ${MOIS[md-1]} ${ad}`;
+}
+
 /* ── Règles de sélection : un carnet est une production reliée ────────────── */
 function selection(donnees, regle){
   let debut, fin;
   if(regle.type === "mensuel"){ debut = regle.cle + "-01"; fin = regle.cle + "-31"; }
+  else if(regle.type === "hebdo"){ debut = regle.cle; fin = jourPlus(regle.cle, 6); }
   else if(regle.type === "annuel"){ debut = regle.cle + "-01-01"; fin = regle.cle + "-12-31"; }
   else { debut = "0000"; fin = "9999"; }
   const dansPeriode = d => d >= debut && d <= fin;
@@ -769,6 +790,7 @@ const enMo = o => Math.round((o||0) / 1048576 * 10) / 10;
 
 if(typeof module !== "undefined") module.exports = {decisionDepot, placeOccupee, enMo, pluriel,
   lireExif, dimsJpeg, Police, PDF, Composition, fabriquerLivre, selection, etatCarnet,
+  lundiDe, titreSemaine, jourPlus,
   fusionner, encoder, echapper, matriceImage, empreinteEntree, mm};
 /* ═══ FIN DU MOTEUR ═══════════════════════════════════════════════════════ */
 
@@ -856,7 +878,7 @@ const MOIS_DOSSIER = m => `${m} ${MOIS[+m.slice(5,7)-1]}`;
 
 function cheminPhoto(photo, original){
   const an = photo.date.slice(0,4), mois = photo.date.slice(0,7);
-  const base = [an, MOIS_DOSSIER(mois)];
+  const base = [an, MOIS_DOSSIER(mois), photo.date];     // …/2026/2026-09 septembre/2026-09-26
   return original ? [...base, "originaux"] : base;
 }
 const nomFichier = (photo, original) => {
@@ -969,26 +991,37 @@ async function enregistrerDonnees(){
 
 /* vignettes : paquets de 60 dans l'espace privé, comme la Bibliothèque */
 const TAILLE_PAQUET = 60;
-async function paquet(numero){
-  if(S.paquets[numero]) return S.paquets[numero];
-  const nom = `vignettes-${String(numero).padStart(4,"0")}.json`;
-  const {id, contenu} = await appdataLire(nom).catch(() => ({id:null, contenu:null}));
-  S.paquets[numero] = contenu || {};
-  S.idPaquets[numero] = id;
-  return S.paquets[numero];
+
+/* Les vignettes sont groupées par mois : afficher septembre ne charge que les
+   paquets de septembre, même avec dix ans de photos. Les paquets numérotés des
+   premières versions restent lisibles. */
+const nomPaquet = cle => typeof cle === "number"
+  ? `vignettes-${String(cle).padStart(4,"0")}.json`      // ancien format
+  : `vignettes-${cle}.json`;
+
+function clePaquet(photo){
+  const mois = photo.date.slice(0,7);
+  const rang = vivantes().filter(p => (p.date||"").startsWith(mois)).length;
+  return `${mois}-${Math.floor(rang / TAILLE_PAQUET)}`;
+}
+
+async function paquet(cle){
+  if(S.paquets[cle]) return S.paquets[cle];
+  const {id, contenu} = await appdataLire(nomPaquet(cle)).catch(() => ({id:null, contenu:null}));
+  S.paquets[cle] = contenu || {};
+  S.idPaquets[cle] = id;
+  return S.paquets[cle];
 }
 async function rangerVignette(photo, dataUrl){
-  const numero = Math.floor((S.donnees.photos.length) / TAILLE_PAQUET);
-  const p = await paquet(numero);
+  const cle = clePaquet(photo);
+  const p = await paquet(cle);
   p[photo.id] = dataUrl;
-  photo.paquet = numero;
-  S.paquetsSales.add(numero);
+  photo.paquet = cle;
+  S.paquetsSales.add(cle);
 }
 async function viderPaquets(){
-  for(const numero of S.paquetsSales){
-    const nom = `vignettes-${String(numero).padStart(4,"0")}.json`;
-    S.idPaquets[numero] = await appdataEcrire(nom, S.paquets[numero], S.idPaquets[numero]);
-  }
+  for(const cle of S.paquetsSales)
+    S.idPaquets[cle] = await appdataEcrire(nomPaquet(cle), S.paquets[cle], S.idPaquets[cle]);
   S.paquetsSales.clear();
 }
 
@@ -1123,11 +1156,12 @@ function feuillet(){
          vieilles photos, dis-le ici : elles seront rangées au bon jour.</p>
       <div class="choix-date">
         <button data-a="mode-date" data-mode="exif" aria-pressed="${!f.date}">
-          La date de prise de vue
-          <small>lue dans la photo, et la date d’aujourd’hui si elle manque</small></button>
+          Chacune à sa date de prise de vue
+          <small>lue dans la photo ; à défaut, la date du fichier — souvent aujourd’hui
+            quand le téléphone en fait une copie</small></button>
         <button data-a="mode-date" data-mode="fixe" aria-pressed="${!!f.date}">
-          Une date que je choisis
-          <small>pour tout le lot, par exemple l’anniversaire</small></button>
+          Une seule date pour tout le lot
+          <small>l’anniversaire, les vacances, le jour de la sortie</small></button>
       </div>
       ${f.date ? `<input type="date" data-a="date-feuillet" value="${f.date}" max="${auj}">` : ""}
       <div class="ligne" style="margin-top:16px">
@@ -1150,8 +1184,16 @@ function feuillet(){
 }
 
 /* ── photos ──────────────────────────────────────────────────────────────── */
+const TRANCHE = 300;      // au-delà, on affiche par tranches : le rendu reste instantané
+
 function vuePhotos(){
-  const photos = photosDuMois();
+  const toutes = photosDuMois();
+  const limite = S.tranche || TRANCHE;
+  const photos = toutes.length > limite
+    ? [...toutes].sort((a,b) => (b.date + (b.heure||"")).localeCompare(a.date + (a.heure||"")))
+        .slice(0, limite)
+    : toutes;
+  const reste = toutes.length - photos.length;
   const jours = {};
   for(const p of photos) (jours[p.date] = jours[p.date] || []).push(p);
   const dates = Object.keys(jours).sort().reverse();
@@ -1160,13 +1202,15 @@ function vuePhotos(){
   const entete = `<header class="entete"><div class="entete-rang">
     <button class="rond" data-a="mois" data-pas="-1" aria-label="Mois précédent">${I.gauche}</button>
     <div class="mois-titre">${moisLong(S.mois + "-01")}
-      <span class="sourd">${photos.length ? `${photos.length} photo${photos.length>1?"s":""}`
-        : "aucune photo"}${total ? ` · ${total} en tout` : ""}</span></div>
+      <span class="sourd">${toutes.length ? pluriel(toutes.length, "photo", "photos")
+        : "aucune photo"}${total ? ` · ${total} en tout` : ""}${
+        S.chargement ? " · " + S.chargement : ""}</span></div>
     <button class="rond" data-a="mois" data-pas="1" aria-label="Mois suivant">${I.droite}</button>
     <button class="rond ${S.actualise ? "tourne" : ""}" data-a="actualiser"
       aria-label="Actualiser depuis Drive">${I.actualiser}</button>
-    ${photos.length ? `<button class="bouton plat" data-a="mode-choisir"
-      style="font-size:13.5px; padding:11px 8px; color:var(--ambre)">Choisir</button>` : ""}
+    ${toutes.length ? `<button class="bouton plat" data-a="${S.modeChoix ? "choisir-mois" : "mode-choisir"}"
+      style="font-size:13.5px; padding:11px 8px; color:var(--ambre)">${
+        S.modeChoix ? "Tout le mois" : "Choisir"}</button>` : ""}
   </div></header>`;
 
   if(!dates.length) return entete + `<div class="vide">
@@ -1181,6 +1225,9 @@ function vuePhotos(){
       <div class="jour-tete">
         <span class="jour-date">${jourCourt(d)}</span>
         <span class="compte">${jours[d].length}</span>
+        ${S.modeChoix ? `<button class="bouton plat" data-a="choisir-jour" data-date="${d}"
+          style="font-size:12.5px; padding:2px 8px; color:var(--ambre)">${
+            jours[d].every(p => S.selection.has(p.id)) ? "Aucune" : "Tout le jour"}</button>` : ""}
         <span class="qui">${gens.map(m =>
           `<span class="point" style="background:${m.couleur}" title="${ech(m.nom)}"></span>`).join("")}
           ${texte ? `<span class="point" style="background:var(--ambre)" title="un texte"></span>` : ""}
@@ -1194,7 +1241,10 @@ function vuePhotos(){
           <img data-photo="${p.id}" alt="" decoding="async">
           <span class="coche"></span></button>`).join("")}</div>
     </section>`;
-  }).join("") + `</div>`;
+  }).join("") + `</div>`
+  + (reste > 0 ? `<div class="ligne" style="justify-content:center; padding:22px 0">
+      <button class="bouton" data-a="plus-photos">Afficher ${
+        pluriel(reste, "photo de plus", "photos de plus")}</button></div>` : "");
 }
 
 function posterVignettes(){
@@ -1305,6 +1355,13 @@ function vueCarnets(){
       <button class="bouton" data-a="carnet" data-type="annuel" data-cle="${annee}"
         ${S.occupe?"disabled":""}>Année ${annee}</button>
     </div>
+    ${semainesDuMois().length ? `
+      <p class="chapeau" style="margin:18px 0 8px">Par semaine, dans ${moisLong(S.mois+"-01")}</p>
+      <div class="ligne">${semainesDuMois().map(s => `
+        <button class="bouton" data-a="carnet" data-type="hebdo" data-cle="${s.lundi}"
+          ${S.occupe?"disabled":""} style="font-size:13.5px; padding:9px 13px">
+          ${s.libelle}<span class="sourd" style="font-size:12px"> · ${s.nb}</span></button>`).join("")}</div>`
+    : ""}
     ${S.bilan ? `<div class="fiche"><b>${S.bilan.pages} pages</b> · ${S.bilan.jours} jours ·
       ${S.bilan.photos} photos · ${S.bilan.format} · ${S.bilan.poidsMo} Mo
       ${S.bilan.avertissements?.length ? `<ul style="margin:8px 0 0; padding-left:18px;
@@ -1329,6 +1386,21 @@ function vueCarnets(){
           ${e.motifs.map(ech).join(" · ")}</p>`:""}</div>`;
     }).join("") : `<p class="chapeau" style="margin-top:22px">Aucun carnet pour l’instant.</p>`}
   </div>`;
+}
+
+/** Les semaines qui contiennent au moins une photo dans le mois affiché. */
+function semainesDuMois(){
+  const compte = {};
+  for(const p of photosDuMois()){
+    const lundi = lundiDe(p.date);
+    compte[lundi] = (compte[lundi] || 0) + 1;
+  }
+  return Object.keys(compte).sort().map(lundi => {
+    const dimanche = jourPlus(lundi, 6);
+    const libelle = `${Number(lundi.slice(8))}–${Number(dimanche.slice(8))} ${
+      MOIS[+dimanche.slice(5,7)-1].slice(0,4)}.`;
+    return {lundi, nb:compte[lundi], libelle};
+  });
 }
 
 /* ── réglages ────────────────────────────────────────────────────────────── */
@@ -1365,16 +1437,23 @@ function vueReglages(){
     <div class="fiche">
       <b style="font-family:var(--serif); font-size:19px; font-weight:400">Rangement dans Drive</b>
       <p class="chapeau" style="margin:8px 0 0">
-        Chaque photo va dans <i>Photothèque / année / mois</i>, les fichiers d’origine dans
-        un sous-dossier <i>originaux</i>, les carnets dans <i>Carnets</i>. Les noms
+        Chaque photo va dans <i>Photothèque / année / mois / jour</i>, les fichiers d’origine
+        dans un sous-dossier <i>originaux</i>, les carnets dans <i>Carnets</i>. Les noms
         commencent par la date, pour que Drive les trie tout seul.</p>
-      ${aRanger().length ? `<p style="margin:8px 0 0; font-size:13px; color:#9A6A1E">
+      <label class="ligne" style="margin-top:10px; gap:8px">
+        <input type="checkbox" data-a="rangement-auto"
+          ${reglages().rangementAuto !== false ? "checked" : ""}>
+        <span>Ranger tout seul à l’ouverture</span></label>
+      <p class="chapeau" style="margin:6px 0 0">Les nouvelles photos vont directement au bon
+         endroit. À l’ouverture, l’application remet en place ce qui a bougé, par petits lots
+         de ${LOT_AUTO}. Au-delà, elle demande — c’est long et ça touche ton Drive.</p>
+      ${aRanger().length ? `<p style="margin:10px 0 0; font-size:13px; color:#9A6A1E">
           ${pluriel(aRanger().length, "photo n’est pas", "photos ne sont pas")} encore
           à sa place : déposée avant le rangement automatique, ou redatée depuis.</p>
         <div class="ligne" style="margin-top:12px">
           <button class="bouton fort" data-a="ranger" ${S.avancement?"disabled":""}
-            >Ranger ${aRanger().length} photo${aRanger().length>1?"s":""}</button></div>`
-      : `<p style="margin:8px 0 0; font-size:13px; color:#3E6B3A">Tout est à sa place.</p>`}
+            >Ranger ${aRanger().length} photo${aRanger().length>1?"s":""} maintenant</button></div>`
+      : `<p style="margin:10px 0 0; font-size:13px; color:#3E6B3A">Tout est à sa place.</p>`}
       <p class="chapeau" style="margin:10px 0 0">Les fichiers sont déplacés, jamais copiés
          ni dupliqués. Tu peux interrompre : la reprise continue où elle s’est arrêtée.</p>
     </div>
@@ -1470,12 +1549,27 @@ const ACTIONS = {
     await ranger(vivantes().filter(p => cible.includes(p.id)));
     render();
   },
+  "plus-photos": () => { S.tranche = (S.tranche || TRANCHE) + TRANCHE; render();
+                         chargerVignettes(); },
   mois: (el) => {
+    S.tranche = TRANCHE;
     const d = new Date(S.mois + "-01T12:00:00");
     d.setMonth(d.getMonth() + Number(el.dataset.pas));
     S.mois = d.toISOString().slice(0,7); S.selection.clear(); render(); chargerVignettes();
   },
   "mode-choisir": () => { S.modeChoix = true; empiler("choix"); render(); },
+  "choisir-jour": (el) => {
+    const duJour = photosDuMois().filter(p => p.date === el.dataset.date);
+    const tout = duJour.every(p => S.selection.has(p.id));
+    for(const p of duJour) tout ? S.selection.delete(p.id) : S.selection.add(p.id);
+    render();
+  },
+  "choisir-mois": () => {
+    const mois = photosDuMois();
+    const tout = mois.every(p => S.selection.has(p.id));
+    for(const p of mois) tout ? S.selection.delete(p.id) : S.selection.add(p.id);
+    render();
+  },
   "annuler-choix": () => { S.modeChoix = false; S.selection.clear(); render(); },
   jour: (el) => { S.date = el.dataset.date; S.onglet = "ecrire"; S.conversation = [];
                   S.brouillon = ""; empiler("ecrire"); render(); },
@@ -1549,6 +1643,12 @@ const ACTIONS = {
     mot(rates ? `${faits - rates} rangée(s), ${rates} en échec — réessaie.`
               : `${faits} photo${faits>1?"s":""} rangée${faits>1?"s":""} dans Drive.`);
   },
+  "rangement-auto": async (el) => {
+    reglages().rangementAuto = el.checked; reglages().maj = new Date().toISOString();
+    await enregistrerDonnees(); render();
+    mot(el.checked ? "L’application rangera toute seule à l’ouverture."
+                   : "Le rangement se fera seulement sur demande.");
+  },
   originaux: async (el) => {
     reglages().originaux = el.checked; reglages().maj = new Date().toISOString();
     await enregistrerDonnees(); render();
@@ -1587,7 +1687,7 @@ document.addEventListener("click", e => {
 document.addEventListener("change", e => {
   const el = e.target.closest("[data-a]");
   if(el && el.dataset.a === "date-feuillet"){ S.feuillet.date = el.value; return; }
-  if(el && ["date","relance","originaux"].includes(el.dataset.a))
+  if(el && ["date","relance","originaux","rangement-auto"].includes(el.dataset.a))
     Promise.resolve(ACTIONS[el.dataset.a](el)).catch(err => mot(err.message, true));
 });
 document.addEventListener("input", e => {
@@ -1694,9 +1794,15 @@ async function deposerVraiment(fichiers){
     render();
     try{
       if(!fichier.type.startsWith("image/")){ toast(`${fichier.name} : pas une image`, true); continue; }
+      // reconnaissance immédiate : même nom, même taille, même date de fichier.
+      // Évite de lire et d'empreinter un fichier déjà déposé.
+      const sig = `${fichier.name}|${fichier.size}|${fichier.lastModified}`;
+      const vue = (S.donnees.photos||[]).find(p => p.sig === sig && !p.supprime);
+      if(vue && (vue.original || reglages().originaux === false)){ doublons++; continue; }
+
       const brut = new Uint8Array(await fichier.arrayBuffer());
       const sha = await empreinte(brut);
-      const connue = (S.donnees.photos||[]).find(p => p.sha === sha && !p.supprime);
+      const connue = vue || (S.donnees.photos||[]).find(p => p.sha === sha && !p.supprime);
       if(connue){
         // déjà là : on n'en fait pas un doublon, mais on complète l'original s'il manque
         const mesureC = await mesurer(fichier);
@@ -1711,6 +1817,7 @@ async function deposerVraiment(fichiers){
               [dossierO], fichier.type || "image/jpeg");
             connue.tailleOriginale = fichier.size;
             connue.lOrig = mesureC.l; connue.hOrig = mesureC.h;
+            connue.sig = sig;
             connue.maj = new Date().toISOString();
             completees++;
           }catch(e){ toast(`${fichier.name} : original refusé (${e.message})`, true); }
@@ -1729,7 +1836,7 @@ async function deposerVraiment(fichiers){
               || new Date(fichier.lastModified).toISOString().slice(0,10)};
       const dossierMois = await dossierChemin(cheminPhoto(provisoire, false));
       const id = await televerser(tirage, nomFichier(provisoire, false), [dossierMois]);
-      const photo = {id, sha, nom:fichier.name, taille:tirage.size,
+      const photo = {id, sha, sig, nom:fichier.name, taille:tirage.size,
         date: provisoire.date,
         dateDevinee: !S.dateDepot && !exif.date,
         heure: exif.heure || "", orientation: exif.orientation || 1,
@@ -1785,11 +1892,21 @@ const enDataUrl = blob => new Promise(ok => {
 
 async function chargerVignettes(){
   const manquantes = photosDuMois().filter(p => !S.urls.has(p.id));
-  const numeros = [...new Set(manquantes.map(p => p.paquet).filter(n => n !== undefined))];
-  for(const numero of numeros){
-    const p = await paquet(numero);
+  if(!manquantes.length) return;
+  const cles = [...new Set(manquantes.map(p => p.paquet).filter(c => c !== undefined
+    && c !== null))];
+  let charges = 0;
+  for(const cle of cles){
+    const p = await paquet(cle);
     for(const photo of manquantes) if(p[photo.id]) S.urls.set(photo.id, p[photo.id]);
+    charges++;
+    // on montre ce qui arrive, sans attendre le reste
+    if(S.onglet === "photos" && !S.photo) posterVignettes();
+    if(charges < cles.length && S.onglet === "photos")
+      S.chargement = `${charges} paquet sur ${cles.length}`;
+    else S.chargement = null;
   }
+  S.chargement = null;
   render();
 }
 
@@ -1807,9 +1924,20 @@ function etiqueterJour(date){
 }
 
 /* ── rangement des fichiers déjà déposés ─────────────────────────────────── */
-const VERSION_RANGEMENT = 7;      // change si l'arborescence évolue
+const VERSION_RANGEMENT = 11;     // change si l'arborescence évolue
 const signatureRange = p => `${p.date}|${p.heure}|${p.nom}|${VERSION_RANGEMENT}`;
 const aRanger = () => vivantes().filter(p => p.range !== signatureRange(p));
+
+const LOT_AUTO = 25;      // au-delà, on préfère demander : c'est long et ça touche le Drive
+
+/** Au démarrage : remet discrètement en place ce qui a bougé, si c'est peu. */
+async function rangementAutomatique(){
+  if(reglages().rangementAuto === false) return;
+  const liste = aRanger();
+  if(!liste.length || liste.length > LOT_AUTO) return;
+  const {faits, rates} = await ranger(liste, true);
+  if(faits - rates > 0) render();
+}
 
 async function ranger(liste, discret){
   let faits = 0, rates = 0;
@@ -1920,6 +2048,7 @@ async function fabriquer(regle, fiche){
       return octets;
     };
     const titre = regle.type === "mensuel" ? moisLong(regle.cle + "-01")
+                : regle.type === "hebdo" ? titreSemaine(regle.cle)
                 : regle.type === "annuel" ? "Année " + regle.cle : "Carnet choisi";
     const {octets, infos} = await fabriquerLivre(s.jours,
       {titre, sousTitre:(S.donnees.famille||[]).filter(m => m.id !== "moi")
@@ -1927,7 +2056,7 @@ async function fabriquer(regle, fiche){
 
     S.avancement = {texte:"Envoi du PDF dans Drive…", part:90}; render();
     const dossierCarnets = await dossierChemin(["Carnets"]);
-    const nom = `Carnet ${regle.cle || "choisi"}.pdf`;
+    const nom = `Carnet ${regle.type === "hebdo" ? "semaine " : ""}${regle.cle || "choisi"}.pdf`;
     const fichier = await televerser(new Blob([octets], {type:"application/pdf"}), nom,
                                     [dossierCarnets], "application/pdf");
     const cible = fiche || {id:"c" + Date.now(), regle};
@@ -1953,6 +2082,7 @@ async function demarrerSession(){
   S.pret = true;
   render();
   await chargerVignettes();
+  rangementAutomatique().catch(() => {});   // en fond, sans bloquer l'affichage
 }
 async function reprendreSession(){
   if(relireJeton()){
