@@ -54,6 +54,8 @@
   .rond{width:36px; height:36px; border-radius:50%; display:grid; place-items:center;
         color:inherit}
   .rond:active{background:rgba(128,128,128,.18)}
+  .rond.tourne{animation:tourner 1s linear infinite}
+  @keyframes tourner{to{transform:rotate(360deg)}}
   .mois-titre{flex:1; text-align:center; font-family:var(--serif); font-size:18px;
               line-height:1.15}
   .mois-titre span{display:block; font-family:var(--sans); font-size:11.5px; margin-top:1px}
@@ -128,8 +130,8 @@
   .visio-haut{display:flex; align-items:center; gap:10px; padding:env(safe-area-inset-top,0px) 10px 0;
     height:calc(52px + env(safe-area-inset-top,0px)); color:#fff}
   .visio-haut .quand{flex:1; text-align:center; font-family:var(--serif); font-size:16px}
-  .visio-scene{flex:1; display:grid; place-items:center; overflow:hidden; touch-action:pan-y}
-  .visio-scene img{max-width:100%; max-height:100%; object-fit:contain}
+  .visio-scene{flex:1; display:grid; place-items:center; overflow:hidden; position:relative}
+  .visio-scene img{display:block; transform-origin:center center}
   .visio-bas{padding:12px 14px calc(14px + env(safe-area-inset-bottom,0px)); color:#EDE8E0;
              display:grid; gap:10px}
   .visio-bas .info{font-size:12px; color:#9A9288; line-height:1.5}
@@ -175,6 +177,25 @@
   .echange.moi{background:#fff; border:1px solid #E4DCCB; border-radius:14px; padding:12px 15px}
   .echange.claude{border-left:2px solid var(--ambre); padding-left:15px; color:#3A3529}
 
+  .voile{position:fixed; inset:0; z-index:85; background:rgba(8,7,6,.6)}
+  .feuillet{position:fixed; left:50%; bottom:0; transform:translateX(-50%); z-index:86;
+    width:min(520px,100%); background:var(--papier); color:var(--encre);
+    border-radius:18px 18px 0 0; padding:20px 18px calc(20px + env(safe-area-inset-bottom,0px));
+    animation:monter .2s ease-out}
+  @keyframes monter{from{transform:translate(-50%,40px); opacity:0}
+                    to{transform:translate(-50%,0); opacity:1}}
+  .feuillet .bouton{background:#fff; border-color:#DCD2BE; color:var(--encre)}
+  .feuillet .bouton.fort{background:var(--ambre); color:#1A1509; border-color:var(--ambre)}
+  .feuillet .bouton.plat{background:none; border-color:transparent; color:var(--encre-sourd)}
+  .feuillet h3{font-family:var(--serif); font-size:21px; font-weight:400; margin:0 0 4px}
+  .feuillet p{color:var(--encre-sourd); font-size:13.5px; margin:0 0 14px}
+  .feuillet input[type=date]{width:100%; padding:12px; border-radius:10px;
+    border:1px solid #DCD2BE; background:#fff; color:var(--encre); color-scheme:light}
+  .choix-date{display:grid; gap:8px; margin-bottom:12px}
+  .choix-date button{text-align:left; padding:13px 14px; border-radius:12px;
+    border:1px solid #DCD2BE; background:#fff}
+  .choix-date button[aria-pressed="true"]{border-color:var(--ambre); background:#FDF3E3}
+  .choix-date small{display:block; color:var(--encre-sourd); font-size:12.5px; margin-top:2px}
   .mot{position:fixed; left:50%; bottom:calc(var(--hb) + 14px); transform:translateX(-50%);
     background:#2A2621; color:#F2EDE4; border-radius:10px; padding:11px 16px; z-index:80;
     max-width:90vw; text-align:center; font-size:14px; box-shadow:0 8px 24px rgba(0,0,0,.35)}
@@ -199,7 +220,7 @@ const CONFIG = {
             gras:"polices/CrimsonText-Bold.ttf",
             italique:"polices/CrimsonText-Italic.ttf"},
 };
-const VERSION = 3;
+const VERSION = 8;
 const PORTEES = "https://www.googleapis.com/auth/drive.file "
               + "https://www.googleapis.com/auth/drive.appdata";
 
@@ -752,31 +773,58 @@ if(typeof module !== "undefined") module.exports = {decisionDepot, placeOccupee,
 /* ═══ FIN DU MOTEUR ═══════════════════════════════════════════════════════ */
 
 /* ═══ DRIVE : le disque de l'utilisateur ══════════════════════════════════ */
-let JETON = null, EXPIRE = 0, clientJeton = null;
+let JETON = null, EXPIRE = 0, clientJeton = null, enCoursJeton = null;
+
+/* Le jeton d'accès (1 h, limité aux fichiers de l'application) est gardé dans
+   sessionStorage : rafraîchir la page ne déconnecte plus. Il disparaît à la
+   fermeture de l'onglet, et n'est jamais écrit sur le disque. */
+function garderJeton(valeur, expire){
+  JETON = valeur; EXPIRE = expire;
+  try{ sessionStorage.setItem("jeton", JSON.stringify({v:valeur, e:expire})); }catch{}
+}
+function relireJeton(){
+  try{
+    const j = JSON.parse(sessionStorage.getItem("jeton") || "null");
+    if(j && j.e > Date.now() + 30000){ JETON = j.v; EXPIRE = j.e; return true; }
+  }catch{}
+  return false;
+}
+function oublierJeton(){
+  JETON = null; EXPIRE = 0;
+  try{ sessionStorage.removeItem("jeton"); }catch{}
+}
 
 function connexion(interactif = true){
-  return new Promise((resolve, reject) => {
-    if(!window.google?.accounts?.oauth2) return reject(new Error("Google non chargé"));
+  if(enCoursJeton) return enCoursJeton;
+  enCoursJeton = new Promise((resolve, reject) => {
+    if(!window.google?.accounts?.oauth2)
+      return reject(new Error("Google n’a pas fini de charger, réessaie dans un instant"));
     clientJeton = clientJeton || google.accounts.oauth2.initTokenClient({
       client_id: CONFIG.CLIENT_ID, scope: PORTEES,
       callback: r => {
         if(r.error) return reject(new Error(r.error));
-        JETON = r.access_token; EXPIRE = Date.now() + (r.expires_in - 60)*1000;
+        garderJeton(r.access_token, Date.now() + (r.expires_in - 60)*1000);
         resolve(JETON);
       },
+      error_callback: e => reject(new Error(e?.type || "connexion refusée")),
     });
     clientJeton.requestAccessToken({prompt: interactif ? "" : "none"});
-  });
+    setTimeout(() => reject(new Error("pas de réponse de Google")), 20000);
+  }).finally(() => { enCoursJeton = null; });
+  return enCoursJeton;
 }
+
 async function jeton(){
   if(JETON && Date.now() < EXPIRE) return JETON;
-  return connexion(true);
+  if(relireJeton()) return JETON;
+  try{ return await connexion(false); }          // silencieux d'abord
+  catch{ return connexion(true); }               // sinon on demande
 }
 async function drive(url, options = {}, essais = 3){
   const t = await jeton();
   const r = await fetch(url.startsWith("http") ? url : "https://www.googleapis.com" + url, {
     ...options, headers: {Authorization: "Bearer " + t, ...(options.headers||{})}});
-  if(r.status === 401){ JETON = null; if(essais > 0) return drive(url, options, essais-1); }
+  if(r.status === 401){ oublierJeton(); if(essais > 0) return drive(url, options, essais-1); }
   if((r.status === 429 || r.status >= 500) && essais > 0){
     await new Promise(k => setTimeout(k, 800 * (4 - essais)));
     return drive(url, options, essais - 1);
@@ -797,6 +845,60 @@ async function dossierPhotos(){
                           mimeType:"application/vnd.google-apps.folder"})})).json();
   S.dossier = cree.id;
   return S.dossier;
+}
+
+/* Arborescence dans Drive :
+     Photothèque/2026/2026-09 septembre/            les tirages
+     Photothèque/2026/2026-09 septembre/originaux/  les fichiers d'origine
+     Photothèque/Carnets/                           les PDF
+   Les noms de fichiers commencent par la date, pour un tri naturel dans Drive. */
+const MOIS_DOSSIER = m => `${m} ${MOIS[+m.slice(5,7)-1]}`;
+
+function cheminPhoto(photo, original){
+  const an = photo.date.slice(0,4), mois = photo.date.slice(0,7);
+  const base = [an, MOIS_DOSSIER(mois)];
+  return original ? [...base, "originaux"] : base;
+}
+const nomFichier = (photo, original) => {
+  const heure = (photo.heure || "").replace(":", "h");
+  const propre = (photo.nom || "photo.jpg").replace(/\.\w+$/, "");
+  const ext = original ? ((photo.nom.match(/\.\w+$/)||[".jpg"])[0]) : ".jpg";
+  return `${photo.date}${heure ? " " + heure : ""} ${propre}${original ? "" : " (1600)"}${ext}`;
+};
+
+/** Résout (et crée au besoin) un chemin de dossiers sous la racine. */
+async function dossierChemin(parties){
+  let parent = await dossierPhotos();
+  let cle = "";
+  for(const nom of parties){
+    cle += "/" + nom;
+    if(S.dossiers[cle]){ parent = S.dossiers[cle]; continue; }
+    const q = encodeURIComponent(`name='${nom.replace(/'/g,"\\'")}' and '${parent}' in parents`
+      + ` and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+    const r = await (await drive(`/drive/v3/files?q=${q}&fields=files(id)`)).json();
+    if(r.files?.length) parent = r.files[0].id;
+    else{
+      const cree = await (await drive("/drive/v3/files", {method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({name:nom, parents:[parent],
+                              mimeType:"application/vnd.google-apps.folder"})})).json();
+      parent = cree.id;
+    }
+    S.dossiers[cle] = parent;
+  }
+  return parent;
+}
+
+/** Déplace un fichier et le renomme, sans jamais le copier. */
+async function deplacer(idFichier, nouveauParent, nouveauNom){
+  const actuel = await (await drive(`/drive/v3/files/${idFichier}?fields=parents,name`)).json();
+  const anciens = (actuel.parents || []).join(",");
+  if(anciens === nouveauParent && actuel.name === nouveauNom) return false;
+  const p = new URLSearchParams({fields:"id"});
+  if(anciens !== nouveauParent){ p.set("addParents", nouveauParent); p.set("removeParents", anciens); }
+  await drive(`/drive/v3/files/${idFichier}?${p}`, {method:"PATCH",
+    headers:{"Content-Type":"application/json"}, body: JSON.stringify({name:nouveauNom})});
+  return true;
 }
 
 async function televerser(blob, nom, parents, type = "image/jpeg"){
@@ -905,7 +1007,7 @@ async function demanderClaude(conversation){
 /* ═══ INTERFACE ═══════════════════════════════════════════════════════════ */
 const S = {
   pret:false, onglet:"photos", donnees:null, idDonnees:null, dossier:null,
-  paquets:{}, idPaquets:{}, paquetsSales:new Set(),
+  paquets:{}, idPaquets:{}, paquetsSales:new Set(), dossiers:{},
   mois:new Date().toISOString().slice(0,7), selection:new Set(), modeChoix:false,
   photo:null, conversation:[], date:new Date().toISOString().slice(0,10), relance:true,
   occupe:false, avancement:null, bilan:null, urls:new Map(), brouillon:"",
@@ -948,6 +1050,10 @@ const I = {
     stroke-width="1.8"><path d="M9 5l7 7-7 7"/></svg>`,
   fermer: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
     stroke-width="1.8"><path d="M6 6l12 12M18 6L6 18"/></svg>`,
+  actualiser: `<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    stroke-width="1.7"><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 4v4h-4"/></svg>`,
+  retour: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    stroke-width="1.7"><path d="M10 5l-7 7 7 7"/><path d="M3 12h15a3 3 0 0 1 0 6h-2"/></svg>`,
 };
 const ONGLETS = [["photos","Photos",I.photos], ["ecrire","Écrire",I.ecrire],
                  ["carnets","Carnets",I.carnets], ["reglages","Réglages",I.reglages]];
@@ -958,7 +1064,10 @@ function render(){
   const r = $("#racine");
   if(!S.pret){
     document.body.className = "monde-pellicule";
-    r.innerHTML = accueil();
+    r.innerHTML = S.reprise
+      ? `<div class="ecran"><div class="vide" style="padding-top:22vh">
+           <p style="font-size:22px" class="sourd">Reprise de la session…</p></div></div>`
+      : accueil();
     return;
   }
   document.body.className = PELLICULE.has(S.onglet) ? "monde-pellicule" : "monde-papier";
@@ -966,8 +1075,10 @@ function render(){
   r.innerHTML = (S.photo ? visionneuse() : "")
     + `<div class="ecran">${(vues[S.onglet]||vuePhotos)()}</div>`
     + (S.modeChoix && S.onglet === "photos" ? barreChoix() : barreBasse())
-    + (S.avancement ? progres() : "");
+    + (S.avancement ? progres() : "")
+    + (S.feuillet ? feuillet() : "");
   if(S.onglet === "photos" && !S.photo) posterVignettes();
+  if(S.photo) requestAnimationFrame(ajusterVisio);
   const t = $("#saisie"); if(t){ t.value = S.brouillon; ajuster(t); }
 }
 
@@ -995,9 +1106,48 @@ const btnOnglet = ([id,nom,icone]) => `<button class="btn-onglet" data-a="onglet
 
 const barreChoix = () => `<div class="barre-choix">
   <button class="bouton plat" data-a="annuler-choix">Annuler</button>
-  <span class="sourd" style="flex:1; text-align:center">${S.selection.size} choisie(s)</span>
+  <span class="sourd" style="flex:1; text-align:center">${S.selection.size} choisie${
+    S.selection.size>1?"s":""}</span>
+  <button class="bouton plat" data-a="dater-selection"
+    ${S.selection.size?"":"disabled"} style="color:var(--ambre)">Dater</button>
   <button class="bouton fort" data-a="carnet-selection"
-    ${S.selection.size?"":"disabled"}>Faire un carnet</button></div>`;
+    ${S.selection.size?"":"disabled"}>Carnet</button></div>`;
+
+function feuillet(){
+  const f = S.feuillet;
+  const auj = new Date().toISOString().slice(0,10);
+  if(f.type === "depot") return `<div class="voile" data-a="fermer-feuillet"></div>
+    <div class="feuillet">
+      <h3>Quelle date pour ces photos ?</h3>
+      <p>Le téléphone livre parfois des copies datées d’aujourd’hui. Si tu déposes de
+         vieilles photos, dis-le ici : elles seront rangées au bon jour.</p>
+      <div class="choix-date">
+        <button data-a="mode-date" data-mode="exif" aria-pressed="${!f.date}">
+          La date de prise de vue
+          <small>lue dans la photo, et la date d’aujourd’hui si elle manque</small></button>
+        <button data-a="mode-date" data-mode="fixe" aria-pressed="${!!f.date}">
+          Une date que je choisis
+          <small>pour tout le lot, par exemple l’anniversaire</small></button>
+      </div>
+      ${f.date ? `<input type="date" data-a="date-feuillet" value="${f.date}" max="${auj}">` : ""}
+      <div class="ligne" style="margin-top:16px">
+        <button class="bouton plat" data-a="fermer-feuillet">Annuler</button>
+        <span style="flex:1"></span>
+        <button class="bouton fort" data-a="choisir-fichiers">Choisir les photos</button>
+      </div></div>`;
+
+  return `<div class="voile" data-a="fermer-feuillet"></div>
+    <div class="feuillet">
+      <h3>Changer la date</h3>
+      <p>${f.cible.length > 1 ? `${f.cible.length} photos seront rangées à cette date.`
+        : "La photo sera rangée à cette date."}</p>
+      <input type="date" data-a="date-feuillet" value="${f.date}" max="${auj}">
+      <div class="ligne" style="margin-top:16px">
+        <button class="bouton plat" data-a="fermer-feuillet">Annuler</button>
+        <span style="flex:1"></span>
+        <button class="bouton fort" data-a="appliquer-date">Ranger à cette date</button>
+      </div></div>`;
+}
 
 /* ── photos ──────────────────────────────────────────────────────────────── */
 function vuePhotos(){
@@ -1013,6 +1163,8 @@ function vuePhotos(){
       <span class="sourd">${photos.length ? `${photos.length} photo${photos.length>1?"s":""}`
         : "aucune photo"}${total ? ` · ${total} en tout` : ""}</span></div>
     <button class="rond" data-a="mois" data-pas="1" aria-label="Mois suivant">${I.droite}</button>
+    <button class="rond ${S.actualise ? "tourne" : ""}" data-a="actualiser"
+      aria-label="Actualiser depuis Drive">${I.actualiser}</button>
     ${photos.length ? `<button class="bouton plat" data-a="mode-choisir"
       style="font-size:13.5px; padding:11px 8px; color:var(--ambre)">Choisir</button>` : ""}
   </div></header>`;
@@ -1068,7 +1220,9 @@ function visionneuse(){
       <span style="width:36px"></span>
     </div>
     <div class="visio-scene" id="scene">
-      ${grand ? `<img src="${grand}" alt="" style="transform:rotate(${tourne}deg)">`
+      ${grand ? `<img id="grande" src="${grand}" alt=""
+            data-l="${p.l}" data-h="${p.h}" data-tourne="${tourne}"
+            style="transform:rotate(${tourne}deg); visibility:hidden">`
               : `<span class="sourd">chargement…</span>`}
       ${i > 0 ? `<button class="fleche g" data-a="voisine" data-pas="-1">${I.gauche}</button>` : ""}
       ${i < liste.length-1 ? `<button class="fleche d" data-a="voisine" data-pas="1">${I.droite}</button>` : ""}
@@ -1083,6 +1237,7 @@ function visionneuse(){
           data-id="${p.id}" data-quoi="original">Qualité d’origine</button>` : ""}
         <button class="bouton" data-a="telecharger" data-id="${p.id}" data-quoi="tirage">Tirage</button>
         <span style="flex:1"></span>
+        <button class="bouton plat" data-a="dater-photo" data-id="${p.id}">Dater</button>
         <button class="bouton plat" data-a="retirer-photo" data-id="${p.id}"
           style="color:var(--rouge)">Retirer</button>
       </div>
@@ -1094,7 +1249,9 @@ function vueEcrire(){
   const duJour = vivantes().filter(p => p.date === S.date);
   const gens = (S.donnees.jours[S.date]?.personnes || []);
   const deja = (S.donnees.entrees||[]).find(e => e.date === S.date && !e.supprime);
-  return `<header class="entete"><div class="entete-rang"><h1>Raconter</h1>
+  return `<header class="entete"><div class="entete-rang">
+    <button class="rond" data-a="retour" aria-label="Retour aux photos">${I.retour}</button>
+    <h1>Raconter</h1>
     <input type="date" data-a="date" value="${S.date}"
       style="border:1px solid #DCD2BE; border-radius:9px; padding:7px 9px; background:#fff;
              color:var(--encre); color-scheme:light"></div></header>
@@ -1134,7 +1291,11 @@ function vueEcrire(){
 function vueCarnets(){
   const annee = S.mois.slice(0,4);
   const carnets = (S.donnees.carnets||[]).filter(c => !c.supprime);
-  return `<header class="entete"><div class="entete-rang"><h1>Carnets</h1></div></header>
+  return `<header class="entete"><div class="entete-rang">
+    <button class="rond" data-a="retour" aria-label="Retour aux photos">${I.retour}</button>
+    <h1>Carnets</h1>
+    <button class="rond" data-a="actualiser" aria-label="Actualiser">${I.actualiser}</button>
+    </div></header>
   <div class="feuille">
     <p class="chapeau">Un carnet retient les photos et les textes qui l’ont produit.
        Quand ils bougent, il le dit et se refait en un geste.</p>
@@ -1175,7 +1336,9 @@ function vueReglages(){
   const place = placeOccupee(S.donnees.photos);
   const n = vivantes().length;
   const sansOriginal = n - place.avecOriginal;
-  return `<header class="entete"><div class="entete-rang"><h1>Réglages</h1></div></header>
+  return `<header class="entete"><div class="entete-rang">
+    <button class="rond" data-a="retour" aria-label="Retour aux photos">${I.retour}</button>
+    <h1>Réglages</h1></div></header>
   <div class="feuille">
     <p class="chapeau">Version ${VERSION} · ${n} photo${n>1?"s":""} ·
        ${enMo(place.total)} Mo dans ton Drive</p>
@@ -1196,6 +1359,23 @@ function vueReglages(){
       ${sansOriginal ? `<p style="margin:8px 0 0; font-size:13px; color:#9A6A1E">
         ${pluriel(sansOriginal, "photo n’a pas", "photos n’ont pas")} d’original.
         Les redéposer l’ajoutera.</p>`:""}
+    </div>
+
+    <div class="fiche">
+      <b style="font-family:var(--serif); font-size:19px; font-weight:400">Rangement dans Drive</b>
+      <p class="chapeau" style="margin:8px 0 0">
+        Chaque photo va dans <i>Photothèque / année / mois</i>, les fichiers d’origine dans
+        un sous-dossier <i>originaux</i>, les carnets dans <i>Carnets</i>. Les noms
+        commencent par la date, pour que Drive les trie tout seul.</p>
+      ${aRanger().length ? `<p style="margin:8px 0 0; font-size:13px; color:#9A6A1E">
+          ${pluriel(aRanger().length, "photo n’est pas", "photos ne sont pas")} encore
+          à sa place : déposée avant le rangement automatique, ou redatée depuis.</p>
+        <div class="ligne" style="margin-top:12px">
+          <button class="bouton fort" data-a="ranger" ${S.avancement?"disabled":""}
+            >Ranger ${aRanger().length} photo${aRanger().length>1?"s":""}</button></div>`
+      : `<p style="margin:8px 0 0; font-size:13px; color:#3E6B3A">Tout est à sa place.</p>`}
+      <p class="chapeau" style="margin:10px 0 0">Les fichiers sont déplacés, jamais copiés
+         ni dupliqués. Tu peux interrompre : la reprise continue où elle s’est arrêtée.</p>
     </div>
 
     <div class="fiche">
@@ -1233,20 +1413,71 @@ function vueReglages(){
 /* ── actions ─────────────────────────────────────────────────────────────── */
 const ACTIONS = {
   connexion: async () => { await connexion(true); await demarrerSession(); },
-  deconnexion: () => { JETON = null; S.pret = false; render(); },
+  deconnexion: () => { oublierJeton(); S.pret = false; S.donnees = null; render(); },
   onglet: (el) => { S.onglet = el.dataset.id; S.bilan = null; S.modeChoix = false;
-                    S.selection.clear(); render();
+                    S.selection.clear();
+                    if(S.onglet !== "photos") empiler(S.onglet);
+                    render();
                     if(S.onglet === "photos") chargerVignettes(); },
-  deposer: () => $("#fichiers").click(),
+  retour: () => { S.onglet = "photos"; S.bilan = null; render(); },
+  actualiser: async () => {
+    if(S.actualise) return;
+    S.actualise = true; render();
+    try{
+      const {id, contenu} = await appdataLire(FICHIER_DONNEES);
+      if(contenu){ S.donnees = fusionner(S.donnees, contenu); S.idDonnees = id || S.idDonnees; }
+      S.paquets = {}; S.idPaquets = {};
+      S.actualise = false; render();
+      await chargerVignettes();
+      mot("À jour.");
+    }catch(e){ S.actualise = false; render(); mot(e.message, true); }
+  },
+  deposer: () => { S.feuillet = {type:"depot", date:""}; render(); },
+  "mode-date": (el) => {
+    S.feuillet.date = el.dataset.mode === "fixe"
+      ? (S.feuillet.date || new Date().toISOString().slice(0,10)) : "";
+    render();
+  },
+  "date-feuillet": (el) => { S.feuillet.date = el.value; },
+  "fermer-feuillet": () => { S.feuillet = null; render(); },
+  "choisir-fichiers": () => {
+    S.dateDepot = S.feuillet.date || null;
+    S.feuillet = null; render();
+    $("#fichiers").click();
+  },
+  "dater-photo": (el) => {
+    const p = vivantes().find(x => x.id === el.dataset.id);
+    S.feuillet = {type:"dater", date:p.date, cible:[p.id]}; render();
+  },
+  "dater-selection": () => {
+    const premiere = vivantes().find(p => S.selection.has(p.id));
+    S.feuillet = {type:"dater", date:premiere?.date || new Date().toISOString().slice(0,10),
+                  cible:[...S.selection]}; render();
+  },
+  "appliquer-date": async () => {
+    const {date, cible} = S.feuillet;
+    if(!date) return;
+    const maj = new Date().toISOString();
+    for(const p of vivantes()) if(cible.includes(p.id)){ p.date = date; p.maj = maj; }
+    S.feuillet = null; S.modeChoix = false; S.selection.clear(); S.photo = null;
+    S.mois = date.slice(0,7);
+    render();
+    await enregistrerDonnees();
+    mot(cible.length > 1 ? `${cible.length} photos rangées au ${jourCourt(date)}.`
+                         : `Photo rangée au ${jourCourt(date)}.`);
+    // les fichiers suivent dans Drive
+    await ranger(vivantes().filter(p => cible.includes(p.id)));
+    render();
+  },
   mois: (el) => {
     const d = new Date(S.mois + "-01T12:00:00");
     d.setMonth(d.getMonth() + Number(el.dataset.pas));
     S.mois = d.toISOString().slice(0,7); S.selection.clear(); render(); chargerVignettes();
   },
-  "mode-choisir": () => { S.modeChoix = true; render(); },
+  "mode-choisir": () => { S.modeChoix = true; empiler("choix"); render(); },
   "annuler-choix": () => { S.modeChoix = false; S.selection.clear(); render(); },
   jour: (el) => { S.date = el.dataset.date; S.onglet = "ecrire"; S.conversation = [];
-                  S.brouillon = ""; render(); },
+                  S.brouillon = ""; empiler("ecrire"); render(); },
 
   ouvrir: async (el) => {
     const id = el.dataset.id;
@@ -1254,7 +1485,7 @@ const ACTIONS = {
       S.selection.has(id) ? S.selection.delete(id) : S.selection.add(id);
       return render();
     }
-    S.photo = id; render(); chargerGrande(id);
+    S.photo = id; empiler("photo"); render(); chargerGrande(id);
   },
   voisine: (el) => {
     const liste = photosDuMois();
@@ -1309,6 +1540,14 @@ const ACTIONS = {
     if(c?.fichier) window.open(`https://drive.google.com/file/d/${c.fichier}/view`, "_blank");
   },
 
+  ranger: async () => {
+    const liste = aRanger();
+    if(!liste.length) return;
+    const {faits, rates} = await ranger(liste);
+    render();
+    mot(rates ? `${faits - rates} rangée(s), ${rates} en échec — réessaie.`
+              : `${faits} photo${faits>1?"s":""} rangée${faits>1?"s":""} dans Drive.`);
+  },
   originaux: async (el) => {
     reglages().originaux = el.checked; reglages().maj = new Date().toISOString();
     await enregistrerDonnees(); render();
@@ -1346,10 +1585,12 @@ document.addEventListener("click", e => {
 });
 document.addEventListener("change", e => {
   const el = e.target.closest("[data-a]");
+  if(el && el.dataset.a === "date-feuillet"){ S.feuillet.date = el.value; return; }
   if(el && ["date","relance","originaux"].includes(el.dataset.a))
     Promise.resolve(ACTIONS[el.dataset.a](el)).catch(err => mot(err.message, true));
 });
 document.addEventListener("input", e => {
+  if(e.target.dataset?.a === "date-feuillet"){ S.feuillet.date = e.target.value; return; }
   if(e.target.id === "saisie"){ S.brouillon = e.target.value; ajuster(e.target); }
 });
 document.addEventListener("keydown", e => {
@@ -1375,6 +1616,37 @@ document.addEventListener("touchend", e => {
 }, {passive:true});
 
 const ajuster = t => { t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight,260)+"px"; };
+
+/** La photo doit tenir dans l'écran une fois tournée : on mesure le cadre, on
+    calcule la taille AVANT rotation pour que le résultat APRÈS rotation y entre. */
+function ajusterVisio(){
+  const img = document.getElementById("grande"), scene = document.getElementById("scene");
+  if(!img || !scene) return;
+  const cadreL = scene.clientWidth, cadreH = scene.clientHeight;
+  if(!cadreL || !cadreH) return;
+  const l = Number(img.dataset.l) || img.naturalWidth || 1;
+  const h = Number(img.dataset.h) || img.naturalHeight || 1;
+  const tourne = Number(img.dataset.tourne) || 0;
+  const quart = tourne === 90 || tourne === 270;
+  // dimensions occupées une fois tournée
+  const facteur = Math.min(cadreL / (quart ? h : l), cadreH / (quart ? l : h));
+  img.style.width = Math.floor(l * facteur) + "px";
+  img.style.height = Math.floor(h * facteur) + "px";
+  img.style.visibility = "visible";
+}
+addEventListener("resize", () => { if(S.photo) ajusterVisio(); });
+addEventListener("orientationchange", () => { if(S.photo) setTimeout(ajusterVisio, 250); });
+
+/* Le bouton retour d'Android ferme la visionneuse ou ramène aux photos,
+   au lieu de quitter l'application. */
+function empiler(etat){
+  try{ history.pushState({app:etat}, ""); }catch{}
+}
+window.addEventListener("popstate", () => {
+  if(S.photo){ S.photo = null; render(); empiler("photos"); return; }
+  if(S.modeChoix){ S.modeChoix = false; S.selection.clear(); render(); empiler("photos"); return; }
+  if(S.onglet !== "photos"){ S.onglet = "photos"; render(); empiler("photos"); return; }
+});
 
 async function chargerGrande(id){
   if(S.urls.has("grand:" + id)) return;
@@ -1403,12 +1675,20 @@ const empreinte = async (octets) => {
   return [...new Uint8Array(h)].map(o => o.toString(16).padStart(2,"0")).join("");
 };
 
+const gardeFermeture = e => { e.preventDefault(); e.returnValue = ""; };
+
 async function deposer(fichiers){
-  const dossier = await dossierPhotos();
+  window.addEventListener("beforeunload", gardeFermeture);
+  try{ await deposerVraiment(fichiers); }
+  finally{ window.removeEventListener("beforeunload", gardeFermeture); }
+}
+
+async function deposerVraiment(fichiers){
+  await dossierPhotos();
   let n = 0, doublons = 0, sansOriginal = 0;
   for(const fichier of fichiers){
     n++;
-    S.avancement = {texte:`Dépôt ${n} / ${fichiers.length}`,
+    S.avancement = {texte:`Photo ${n} sur ${fichiers.length} · garde l’onglet ouvert`,
                     part: Math.round(n/fichiers.length*100)};
     render();
     try{
@@ -1422,10 +1702,14 @@ async function deposer(fichiers){
       const tirage = await reduire(mesure, 1600, 0.85);
       const octetsTirage = new Uint8Array(await tirage.arrayBuffer());
       const d = dimsJpeg(octetsTirage);
-      const base = fichier.name.replace(/\.\w+$/,"");
-      const id = await televerser(tirage, base + ".jpg", [dossier]);
+      const provisoire = {nom:fichier.name, heure: exif.heure || "",
+        date: S.dateDepot || exif.date
+              || new Date(fichier.lastModified).toISOString().slice(0,10)};
+      const dossierMois = await dossierChemin(cheminPhoto(provisoire, false));
+      const id = await televerser(tirage, nomFichier(provisoire, false), [dossierMois]);
       const photo = {id, sha, nom:fichier.name, taille:tirage.size,
-        date: exif.date || new Date(fichier.lastModified).toISOString().slice(0,10),
+        date: provisoire.date,
+        dateDevinee: !S.dateDepot && !exif.date,
         heure: exif.heure || "", orientation: exif.orientation || 1,
         l: d.l, h: d.h, lOrig: mesure.l, hOrig: mesure.h,
         identique: quoi.identique, original: quoi.identique ? id : null,
@@ -1433,13 +1717,13 @@ async function deposer(fichiers){
         ajout: new Date().toISOString(), maj: new Date().toISOString()};
       S.donnees.photos.push(photo);
       if(quoi.original){
-        S.avancement = {texte:`Original ${n} / ${fichiers.length}`,
+        S.avancement = {texte:`Photo ${n} sur ${fichiers.length} · envoi de l’original`,
                         part: Math.round(n/fichiers.length*100)};
         render();
         try{
-          photo.original = await televerser(fichier, base + "-original" +
-            (fichier.name.match(/\.\w+$/)?.[0] || ".jpg"), [dossier],
-            fichier.type || "image/jpeg");
+          const dossierOriginaux = await dossierChemin(cheminPhoto(provisoire, true));
+          photo.original = await televerser(fichier, nomFichier(provisoire, true),
+            [dossierOriginaux], fichier.type || "image/jpeg");
           photo.tailleOriginale = fichier.size;
         }catch(e){
           sansOriginal++;
@@ -1449,6 +1733,9 @@ async function deposer(fichiers){
       const vignette = await reduire(mesure, 320, 0.7);
       await rangerVignette(photo, await enDataUrl(vignette));
       S.urls.set(id, await enDataUrl(vignette));
+      // on fixe l'acquis tous les dix : un dépôt interrompu ne laisse pas
+      // de fichiers orphelins dans Drive
+      if(n % 10 === 0){ await viderPaquets(); await enregistrerDonnees(); }
     }catch(e){ toast(`${fichier.name} : ${e.message}`, true); }
   }
   await viderPaquets();
@@ -1456,7 +1743,13 @@ async function deposer(fichiers){
   S.avancement = null;
   if(n) S.mois = (S.donnees.photos.at(-1)?.date || S.mois).slice(0,7);
   S.onglet = "photos";
+  const devinees = vivantes().filter(p => p.dateDevinee).length;
+  S.dateDepot = null;
   render();
+  if(devinees) setTimeout(() => mot(
+    `${devinees} photo${devinees>1?"s":""} sans date de prise de vue, rangée${
+      devinees>1?"s":""} à la date du fichier. Sélectionne-les et appuie sur Dater pour corriger.`,
+    true), 3600);
   toast(`${n - doublons} photo(s) ajoutée(s)`
     + (doublons ? `, ${doublons} doublon(s) ignoré(s)` : "")
     + (sansOriginal ? `, ${sansOriginal} sans original` : "") + ".");
@@ -1485,6 +1778,40 @@ function etiqueterJour(date){
   const personnes = reponse.split(/\s+/).map(n => S.donnees.famille[+n - 1]?.id).filter(Boolean);
   S.donnees.jours[date] = {personnes, note:jour.note || "", maj:new Date().toISOString()};
   enregistrerDonnees().then(() => { render(); toast("Journée étiquetée."); });
+}
+
+/* ── rangement des fichiers déjà déposés ─────────────────────────────────── */
+const VERSION_RANGEMENT = 7;      // change si l'arborescence évolue
+const signatureRange = p => `${p.date}|${p.heure}|${p.nom}|${VERSION_RANGEMENT}`;
+const aRanger = () => vivantes().filter(p => p.range !== signatureRange(p));
+
+async function ranger(liste, discret){
+  let faits = 0, rates = 0;
+  for(const p of liste){
+    faits++;
+    if(!discret){
+      S.avancement = {texte:`Rangement ${faits} sur ${liste.length}`,
+                      part: Math.round(faits/liste.length*100)};
+      render();
+    }
+    try{
+      const dossierMois = await dossierChemin(cheminPhoto(p, false));
+      await deplacer(p.id, dossierMois, nomFichier(p, false));
+      if(p.original && !p.identique){
+        const dossierOriginaux = await dossierChemin(cheminPhoto(p, true));
+        await deplacer(p.original, dossierOriginaux, nomFichier(p, true));
+      }
+      p.range = signatureRange(p);
+      p.maj = new Date().toISOString();
+      if(faits % 10 === 0) await enregistrerDonnees();
+    }catch(e){
+      rates++;
+      if(!discret) mot(`${p.nom} : ${e.message}`, true);
+    }
+  }
+  await enregistrerDonnees();
+  S.avancement = null;
+  return {faits, rates};
 }
 
 /* ── écriture ────────────────────────────────────────────────────────────── */
@@ -1573,10 +1900,10 @@ async function fabriquer(regle, fiche){
         .map(m => m.nom).join(", "), format:"carre", cahiers4:true}, polices, lirePhoto);
 
     S.avancement = {texte:"Envoi du PDF dans Drive…", part:90}; render();
-    const dossier = await dossierPhotos();
-    const nom = `carnet-${regle.cle || "selection"}.pdf`;
+    const dossierCarnets = await dossierChemin(["Carnets"]);
+    const nom = `Carnet ${regle.cle || "choisi"}.pdf`;
     const fichier = await televerser(new Blob([octets], {type:"application/pdf"}), nom,
-                                    [dossier], "application/pdf");
+                                    [dossierCarnets], "application/pdf");
     const cible = fiche || {id:"c" + Date.now(), regle};
     Object.assign(cible, {titre, regle, fichier, pages:infos.pages, photos:infos.photos,
       poidsMo:infos.poidsMo, maj:new Date().toISOString(),
@@ -1601,6 +1928,15 @@ async function demarrerSession(){
   render();
   await chargerVignettes();
 }
+async function reprendreSession(){
+  if(relireJeton()){
+    try{ await demarrerSession(); return true; }
+    catch{ oublierJeton(); }
+  }
+  try{ await connexion(false); await demarrerSession(); return true; }
+  catch{ return false; }
+}
+
 window.addEventListener("load", async () => {
   try{ CONFIG.RELAIS = localStorage.getItem("relais") || CONFIG.RELAIS; }catch{}
   const entree = document.createElement("input");
@@ -1608,8 +1944,9 @@ window.addEventListener("load", async () => {
   entree.hidden = true;
   entree.onchange = e => { const f = [...e.target.files]; e.target.value = ""; deposer(f); };
   document.body.appendChild(entree);
-  render();
-  try{ await connexion(false); await demarrerSession(); }catch{ /* première visite */ }
+  S.reprise = true; render();
+  await reprendreSession();
+  S.reprise = false; render();
 });
 </script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
