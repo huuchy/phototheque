@@ -6,103 +6,180 @@
 <meta name="theme-color" content="#101F29">
 <title>Photothèque familiale</title>
 <style>
+  /* La police du livre sert aussi à l'écran : dates, mois, titres. */
+  @font-face{font-family:"Crimson"; src:url("polices/CrimsonText-Regular.ttf") format("truetype");
+             font-weight:400; font-display:swap}
+  @font-face{font-family:"Crimson"; src:url("polices/CrimsonText-Bold.ttf") format("truetype");
+             font-weight:700; font-display:swap}
+  @font-face{font-family:"Crimson"; src:url("polices/CrimsonText-Italic.ttf") format("truetype");
+             font-style:italic; font-display:swap}
+
   :root{
-    --encre:#101F29; --fond2:#172C38; --fond3:#1D3543; --trait:#26424F;
-    --texte:#EFE6D6; --sourdine:#8FA6B2; --lampe:#E8A24F; --alerte:#E0796B;
-    --vert:#6FBF8F; --orange:#E8A24F; --rouge:#E0796B;
-    --photos:#7FB2D8; --ecrire:#E8A24F; --carnets:#9E9BE0; --famille:#D98AA0; --reglages:#B48AC0;
-    --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
-    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    /* chambre noire : neutre chaud, pour ne pas fausser les couleurs des photos */
+    --nuit:#12100E; --nuit2:#1C1916; --nuit3:#2A2621; --bord:#38322B;
+    --clair:#F2EDE4; --sourd:#9A9288;
+    /* papier : le versant carnet */
+    --papier:#F5F0E6; --papier2:#EBE4D6; --encre:#22201C; --encre-sourd:#6E6759;
+    --ambre:#E0A24C; --rouge:#D2705E; --vert:#7FAE7A;
+    --serif:"Crimson","Iowan Old Style",Palatino,Georgia,serif;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;
+    --hb:calc(64px + env(safe-area-inset-bottom,0px));   /* hauteur barre basse */
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
   html,body{height:100%}
-  body{margin:0; background:var(--encre); color:var(--texte); font-family:var(--sans);
-       font-size:15px; line-height:1.5;
-       padding-top:env(safe-area-inset-top,0); padding-bottom:env(safe-area-inset-bottom,0)}
-  button{font:inherit; color:inherit; cursor:pointer}
-  input,textarea,select{font:inherit; color:inherit}
-  :focus-visible{outline:2px solid var(--lampe); outline-offset:2px}
+  body{margin:0; font-family:var(--sans); font-size:15px; line-height:1.45;
+       background:var(--nuit); color:var(--clair); overscroll-behavior-y:none}
+  button{font:inherit; color:inherit; background:none; border:0; cursor:pointer; padding:0}
+  input,textarea,select{font:inherit}
+  :focus-visible{outline:2px solid var(--ambre); outline-offset:2px}
+  svg{display:block}
 
-  .haut{position:sticky; top:0; z-index:20; background:var(--fond2);
-        border-bottom:1px solid var(--trait); padding:8px 14px}
-  .haut .rang1{display:flex; align-items:center; gap:10px}
-  .marque{font-family:var(--serif); font-size:17px; margin:0; flex:1}
-  .onglets{display:flex; gap:2px; overflow-x:auto; margin-top:6px; scrollbar-width:none}
-  .onglets::-webkit-scrollbar{display:none}
-  .onglet{background:transparent; border:0; border-bottom:2px solid transparent;
-          padding:7px 12px; color:var(--sourdine); white-space:nowrap}
-  .onglet[aria-current="true"]{color:var(--texte); border-bottom-color:var(--c)}
-  .mini{background:transparent; border:1px solid var(--trait); border-radius:6px;
-        padding:5px 10px; font-size:12.5px; color:var(--sourdine)}
-  .mini:hover{background:var(--fond3); color:var(--texte)}
-  .page{max-width:900px; margin:0 auto; padding:16px 14px 90px}
-  h2.titre{font-family:var(--serif); font-size:21px; margin:0 0 4px}
-  .sous{color:var(--sourdine); font-size:13px; margin:0 0 14px}
-  .bouton{padding:9px 15px; border-radius:8px; border:1px solid var(--trait); background:var(--fond2)}
-  .bouton.fort{background:var(--lampe); color:#17222B; border-color:var(--lampe); font-weight:600}
-  .bouton:disabled{opacity:.45}
-  .ligne{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
-  .carte{background:var(--fond2); border:1px solid var(--trait); border-radius:10px;
-         padding:13px 14px; margin-top:12px}
-  .champ{display:block; margin-top:10px; font-size:12.5px; color:var(--sourdine)}
-  .champ input,.champ select,.champ textarea{width:100%; margin-top:4px; background:var(--fond3);
-    border:1px solid var(--trait); border-radius:8px; padding:9px 10px; color:var(--texte);
-    color-scheme:dark}
-  .puce{padding:3px 10px; font-size:12.5px; border:1px solid var(--trait); border-radius:999px;
-        color:var(--sourdine); background:transparent}
-  .puce[aria-pressed="true"]{color:var(--encre); border-color:transparent}
-  .pastille{width:9px; height:9px; border-radius:50%; display:inline-block}
+  /* ── les deux mondes ───────────────────────────────────────────────── */
+  .monde-pellicule{background:var(--nuit); color:var(--clair)}
+  .monde-papier{background:var(--papier); color:var(--encre)}
+  .monde-papier .sourd{color:var(--encre-sourd)}
+  .sourd{color:var(--sourd)}
 
-  /* barre d'action fixe, pouce en bas */
-  .barrebas{position:fixed; left:0; right:0; bottom:0; z-index:25; background:var(--fond2);
-    border-top:1px solid var(--trait); padding:10px 14px calc(10px + env(safe-area-inset-bottom,0));
-    display:flex; gap:8px; align-items:center}
-  .barrebas .bouton{flex:1}
+  .ecran{min-height:100dvh; padding-bottom:calc(var(--hb) + 10px);
+         max-width:1120px; margin:0 auto}
 
-  /* photos */
-  .jour{margin-top:20px}
-  .jour-tete{display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; margin-bottom:6px}
-  .jour-date{font-family:var(--serif); font-size:16px}
-  .grille{display:grid; grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); gap:4px}
-  .vignette{position:relative; aspect-ratio:1; border-radius:6px; overflow:hidden;
-            background:var(--fond3); border:0; padding:0}
-  .vignette img{width:100%; height:100%; object-fit:cover; display:block}
-  .vignette[aria-pressed="true"]{outline:3px solid var(--lampe); outline-offset:-3px}
-  .vignette .coche{position:absolute; top:4px; right:4px; width:18px; height:18px;
-    border-radius:50%; background:var(--lampe); color:#17222B; font-size:12px;
-    display:none; place-items:center}
-  .vignette[aria-pressed="true"] .coche{display:grid}
-  .mois-nav{display:flex; align-items:center; gap:10px; margin-top:6px}
-  .mois-nav b{font-family:var(--serif); font-size:18px; flex:1; text-align:center}
+  /* ── barre du haut ─────────────────────────────────────────────────── */
+  .entete{position:sticky; top:0; z-index:30; padding-top:env(safe-area-inset-top,0px);
+          backdrop-filter:saturate(140%) blur(14px)}
+  .monde-pellicule .entete{background:rgba(18,16,14,.82); border-bottom:1px solid var(--bord)}
+  .monde-papier .entete{background:rgba(245,240,230,.88); border-bottom:1px solid #DED5C3}
+  .entete-rang{display:flex; align-items:center; gap:6px; height:54px; padding:0 8px 0 4px}
+  .entete h1{font-family:var(--serif); font-size:20px; font-weight:400; margin:0; flex:1;
+             letter-spacing:.01em}
+  .rond{width:36px; height:36px; border-radius:50%; display:grid; place-items:center;
+        color:inherit}
+  .rond:active{background:rgba(128,128,128,.18)}
+  .mois-titre{flex:1; text-align:center; font-family:var(--serif); font-size:18px;
+              line-height:1.15}
+  .mois-titre span{display:block; font-family:var(--sans); font-size:11.5px; margin-top:1px}
 
-  /* écrire */
-  .fil{display:flex; flex-direction:column; gap:14px; margin:14px 0}
-  .bulle{font-family:var(--serif); font-size:16px; line-height:1.6; white-space:pre-wrap}
-  .moi .bulle{background:var(--fond2); border:1px solid var(--trait); border-radius:10px;
-              padding:11px 14px; margin-left:auto; width:fit-content; max-width:88%}
-  .claude .bulle{border-left:2px solid var(--lampe); padding-left:14px}
-  .saisie{width:100%; border:0; background:transparent; resize:none; outline:none;
-          font-family:var(--serif); font-size:16px; min-height:64px}
-  .entree-texte{font-family:var(--serif); font-size:16.5px; line-height:1.7; white-space:pre-wrap}
+  /* ── grille de photos ──────────────────────────────────────────────── */
+  .jour-tete{position:sticky; top:calc(52px + env(safe-area-inset-top,0px)); z-index:20;
+    display:flex; align-items:baseline; gap:8px; padding:14px 14px 8px;
+    background:linear-gradient(to bottom, rgba(18,16,14,.95) 60%, rgba(18,16,14,0))}
+  .jour-date{font-family:var(--serif); font-size:17px; text-transform:lowercase}
+  .jour-tete .compte{font-size:12px; color:var(--sourd)}
+  .jour-tete .qui{margin-left:auto; display:flex; gap:4px; align-items:center}
+  .point{width:8px; height:8px; border-radius:50%}
+  .grille{display:grid; grid-template-columns:repeat(3,1fr); gap:2px; padding:0 2px}
+  @media(min-width:560px){.grille{grid-template-columns:repeat(5,1fr)}}
+  @media(min-width:860px){.grille{grid-template-columns:repeat(7,1fr); gap:3px; padding:0 3px}}
+  .case{position:relative; aspect-ratio:1; overflow:hidden; background:var(--nuit2)}
+  .case img{width:100%; height:100%; object-fit:cover; display:block;
+            opacity:0; transition:opacity .35s ease}
+  .case img.vu{opacity:1}
+  .case .coche{position:absolute; inset:auto 6px 6px auto; width:22px; height:22px;
+    border-radius:50%; border:1.5px solid rgba(255,255,255,.85); display:none}
+  .choix .case .coche{display:block}
+  .case[aria-pressed="true"] .coche{background:var(--ambre); border-color:var(--ambre)}
+  .case[aria-pressed="true"] img{transform:scale(.88); transition:transform .12s ease}
 
-  .bilan{background:var(--fond3); border:1px solid var(--trait); border-radius:8px;
-         padding:11px 13px; margin-top:12px; font-size:13px; line-height:1.55}
-  .bilan ul{margin:6px 0 0; padding-left:18px; color:var(--alerte)}
-  .jauge{height:4px; background:var(--fond3); border-radius:2px; overflow:hidden; margin-top:8px}
-  .jauge i{display:block; height:100%; background:var(--lampe); width:0}
-  .visio{position:fixed; inset:0; background:#0B141B; z-index:40; display:flex;
-         flex-direction:column; padding-top:env(safe-area-inset-top,0)}
-  .visio-image{flex:1; display:grid; place-items:center; overflow:hidden; padding:8px}
-  .visio-image img{max-width:100%; max-height:100%; object-fit:contain; border-radius:6px}
-  .visio-bas{border-top:1px solid var(--trait); background:var(--fond2);
-    padding:12px 14px calc(12px + env(safe-area-inset-bottom,0))}
-  .toast{position:fixed; left:50%; bottom:80px; transform:translateX(-50%); background:var(--fond3);
-         border:1px solid var(--trait); border-radius:8px; padding:11px 16px; z-index:60;
-         max-width:92vw; text-align:center}
-  .toast.err{border-color:var(--alerte)}
-  .vide{color:var(--sourdine); text-align:center; padding:30px 10px}
-  .accueil{max-width:440px; margin:8vh auto; text-align:center}
-  .accueil h1{font-family:var(--serif); font-size:30px; margin:0 0 10px}
+  /* ── écran vide ────────────────────────────────────────────────────── */
+  .vide{display:grid; place-items:center; text-align:center; padding:18vh 24px 0; gap:14px}
+  .vide p{font-family:var(--serif); font-size:24px; margin:0; max-width:22ch; line-height:1.3}
+  .vide small{color:var(--sourd); max-width:30ch; display:block; font-size:13.5px}
+
+  /* ── barre basse ───────────────────────────────────────────────────── */
+  .barre{position:fixed; left:0; right:0; bottom:0; z-index:40; height:var(--hb);
+    padding-bottom:env(safe-area-inset-bottom,0px);
+    display:grid; grid-template-columns:repeat(5,1fr); align-items:center;
+    background:rgba(18,16,14,.94); border-top:1px solid var(--bord);
+    backdrop-filter:saturate(140%) blur(14px)}
+  .monde-papier .barre{background:rgba(235,228,214,.95); border-top-color:#DED5C3;
+                       color:var(--encre)}
+  .btn-onglet{display:grid; justify-items:center; gap:3px; font-size:10.5px; color:var(--sourd);
+              padding:6px 0}
+  .btn-onglet[aria-current="true"]{color:var(--ambre)}
+  .monde-papier .btn-onglet[aria-current="true"]{color:#9A6A1E}
+  .btn-depot{justify-self:center; width:52px; height:52px; border-radius:50%;
+    background:var(--ambre); color:#1A1509; display:grid; place-items:center;
+    box-shadow:0 6px 18px rgba(224,162,76,.35); margin-top:-14px}
+  .btn-depot:active{transform:scale(.94)}
+  @media(min-width:860px){
+    .barre{width:min(520px,100%); left:50%; right:auto; transform:translateX(-50%);
+           border-radius:20px 20px 0 0; border:1px solid var(--bord); border-bottom:0}
+    .barre-choix{width:min(560px,100%); left:50%; right:auto; transform:translateX(-50%);
+                 border-radius:20px 20px 0 0; border:1px solid var(--bord); border-bottom:0}
+    .entete-rang{max-width:1120px; margin:0 auto; padding:0 16px}
+    .jour-tete{padding-left:16px; padding-right:16px}
+  }
+
+  /* ── barre de sélection ────────────────────────────────────────────── */
+  .barre-choix{position:fixed; left:0; right:0; bottom:0; z-index:45; height:var(--hb);
+    padding:0 14px env(safe-area-inset-bottom,0px);
+    display:flex; align-items:center; gap:10px;
+    background:rgba(28,25,22,.97); border-top:1px solid var(--bord)}
+
+  /* ── progression du dépôt ──────────────────────────────────────────── */
+  .progres{position:fixed; left:0; right:0; top:0; z-index:60; padding-top:env(safe-area-inset-top,0px);
+    background:var(--nuit2); border-bottom:1px solid var(--bord)}
+  .progres .txt{display:flex; gap:10px; align-items:center; padding:9px 14px; font-size:13px}
+  .progres i{display:block; height:2px; background:var(--ambre); transition:width .25s ease}
+
+  /* ── visionneuse ───────────────────────────────────────────────────── */
+  .visio{position:fixed; inset:0; z-index:70; background:#000; display:flex;
+         flex-direction:column; animation:ouvrir .18s ease-out}
+  @keyframes ouvrir{from{opacity:0; transform:scale(.97)} to{opacity:1; transform:none}}
+  .visio-haut{display:flex; align-items:center; gap:10px; padding:env(safe-area-inset-top,0px) 10px 0;
+    height:calc(52px + env(safe-area-inset-top,0px)); color:#fff}
+  .visio-haut .quand{flex:1; text-align:center; font-family:var(--serif); font-size:16px}
+  .visio-scene{flex:1; display:grid; place-items:center; overflow:hidden; touch-action:pan-y}
+  .visio-scene img{max-width:100%; max-height:100%; object-fit:contain}
+  .visio-bas{padding:12px 14px calc(14px + env(safe-area-inset-bottom,0px)); color:#EDE8E0;
+             display:grid; gap:10px}
+  .visio-bas .info{font-size:12px; color:#9A9288; line-height:1.5}
+  .visio-bas .actions{display:flex; gap:10px; align-items:center}
+  .fleche{position:absolute; top:50%; transform:translateY(-50%); width:44px; height:44px;
+    border-radius:50%; background:rgba(255,255,255,.08); display:none; place-items:center;
+    color:#fff}
+  @media(min-width:760px){.fleche{display:grid}}
+  .fleche.g{left:12px} .fleche.d{right:12px}
+
+  /* ── boutons ───────────────────────────────────────────────────────── */
+  .bouton{padding:11px 18px; border-radius:10px; font-size:14.5px; font-weight:500;
+          border:1px solid var(--bord); background:var(--nuit2); color:var(--clair)}
+  .monde-papier .bouton{background:#fff; border-color:#DCD2BE; color:var(--encre)}
+  .bouton.fort{background:var(--ambre); color:#1A1509; border-color:var(--ambre); font-weight:600}
+  .bouton:disabled{opacity:.4}
+  .bouton.plat{border-color:transparent; background:none; padding:11px 10px}
+
+  /* ── versant papier : écrire, carnets, réglages ────────────────────── */
+  .feuille{max-width:640px; margin:0 auto; padding:22px 18px 30px}
+  .feuille h2{font-family:var(--serif); font-size:26px; font-weight:400; margin:0 0 4px}
+  .feuille .chapeau{color:var(--encre-sourd); font-size:13.5px; margin:0 0 20px; max-width:52ch}
+  .zone{width:100%; border:1px solid #DCD2BE; border-radius:12px; background:#fff;
+        padding:14px; font-family:var(--serif); font-size:17px; line-height:1.6;
+        min-height:140px; resize:vertical; color:var(--encre)}
+  .ligne{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+  .champ{display:block; margin-top:14px; font-size:12.5px; color:var(--encre-sourd)}
+  .champ input,.champ select{width:100%; margin-top:5px; padding:11px 12px; border-radius:10px;
+    border:1px solid #DCD2BE; background:#fff; color:var(--encre)}
+  .monde-pellicule .champ input{background:var(--nuit2); border-color:var(--bord); color:var(--clair)}
+  .rang-membre{display:grid; grid-template-columns:40px minmax(0,1fr) minmax(0,1.1fr);
+               gap:8px; margin-top:9px}
+  .rang-membre input{min-width:0; padding:10px 11px; border:1px solid #DCD2BE;
+    border-radius:9px; background:#fff; color:var(--encre)}
+  .rang-membre input[type=color]{padding:3px; height:40px}
+  .fiche{border:1px solid #DED5C3; border-radius:14px; background:#FBF8F2; padding:15px 16px;
+         margin-top:14px}
+  .etiquette{display:inline-flex; align-items:center; gap:6px; padding:4px 11px; font-size:13px;
+             border-radius:999px; border:1px solid #DCD2BE; background:#fff}
+  .etiquette[aria-pressed="true"]{color:#1A1509; border-color:transparent}
+  .echange{font-family:var(--serif); font-size:17px; line-height:1.62; white-space:pre-wrap;
+           margin:14px 0}
+  .echange.moi{background:#fff; border:1px solid #E4DCCB; border-radius:14px; padding:12px 15px}
+  .echange.claude{border-left:2px solid var(--ambre); padding-left:15px; color:#3A3529}
+
+  .mot{position:fixed; left:50%; bottom:calc(var(--hb) + 14px); transform:translateX(-50%);
+    background:#2A2621; color:#F2EDE4; border-radius:10px; padding:11px 16px; z-index:80;
+    max-width:90vw; text-align:center; font-size:14px; box-shadow:0 8px 24px rgba(0,0,0,.35)}
+  .mot.raté{background:#5A2A22}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
 </style>
 </head>
 <body>
@@ -122,7 +199,7 @@ const CONFIG = {
             gras:"polices/CrimsonText-Bold.ttf",
             italique:"polices/CrimsonText-Italic.ttf"},
 };
-const VERSION = 2;
+const VERSION = 3;
 const PORTEES = "https://www.googleapis.com/auth/drive.file "
               + "https://www.googleapis.com/auth/drive.appdata";
 
@@ -589,6 +666,8 @@ function selection(donnees, regle){
   return {jours, photos, entrees, debut, fin};
 }
 
+const pluriel = (n, un, plusieurs) => `${n} ${n > 1 ? plusieurs : un}`;
+
 /** Pastille : vert à jour, orange à refaire, rouge fichier absent. */
 function etatCarnet(fiche, donnees){
   if(!fiche.fichier) return {pastille:"rouge", motifs:["le PDF est introuvable"]};
@@ -596,9 +675,11 @@ function etatCarnet(fiche, donnees){
   const s = selection(donnees, fiche.regle);
   const connues = new Set((fiche.sources?.photos || []));
   const nouvelles = s.photos.filter(p => !connues.has(p.id));
-  if(nouvelles.length) motifs.push(`${nouvelles.length} photo(s) ajoutée(s) depuis`);
+  if(nouvelles.length) motifs.push(pluriel(nouvelles.length,
+    "photo ajoutée depuis", "photos ajoutées depuis"));
   const disparues = [...connues].filter(id => !s.photos.some(p => p.id === id));
-  if(disparues.length) motifs.push(`${disparues.length} photo(s) retirée(s)`);
+  if(disparues.length) motifs.push(pluriel(disparues.length,
+    "photo retirée", "photos retirées"));
   for(const src of (fiche.sources?.entrees || [])){
     const e = s.entrees.find(x => x.id === src.id);
     if(!e) motifs.push("une entrée a été supprimée");
@@ -606,7 +687,8 @@ function etatCarnet(fiche, donnees){
   }
   const nouvellesEntrees = s.entrees.filter(e =>
     !(fiche.sources?.entrees || []).some(src => src.id === e.id));
-  if(nouvellesEntrees.length) motifs.push(`${nouvellesEntrees.length} texte(s) ajouté(s)`);
+  if(nouvellesEntrees.length) motifs.push(pluriel(nouvellesEntrees.length,
+    "texte ajouté", "textes ajoutés"));
   return {pastille: motifs.length ? "orange" : "vert", motifs};
 }
 const empreinteEntree = e => `${e.date}|${e.titre}|${e.texte}`.length + ":" +
@@ -664,7 +746,7 @@ function placeOccupee(photos){
 }
 const enMo = o => Math.round((o||0) / 1048576 * 10) / 10;
 
-if(typeof module !== "undefined") module.exports = {decisionDepot, placeOccupee, enMo,
+if(typeof module !== "undefined") module.exports = {decisionDepot, placeOccupee, enMo, pluriel,
   lireExif, dimsJpeg, Police, PDF, Composition, fabriquerLivre, selection, etatCarnet,
   fusionner, encoder, echapper, matriceImage, empreinteEntree, mm};
 /* ═══ FIN DU MOTEUR ═══════════════════════════════════════════════════════ */
@@ -824,333 +906,398 @@ async function demanderClaude(conversation){
 const S = {
   pret:false, onglet:"photos", donnees:null, idDonnees:null, dossier:null,
   paquets:{}, idPaquets:{}, paquetsSales:new Set(),
-  mois:new Date().toISOString().slice(0,7), selection:new Set(),
-  conversation:[], date:new Date().toISOString().slice(0,10), relance:true,
-  occupe:false, avancement:null, entree:null, bilan:null, urls:new Map(),
+  mois:new Date().toISOString().slice(0,7), selection:new Set(), modeChoix:false,
+  photo:null, conversation:[], date:new Date().toISOString().slice(0,10), relance:true,
+  occupe:false, avancement:null, bilan:null, urls:new Map(), brouillon:"",
 };
-const ONGLETS = [["photos","Photos","var(--photos)"], ["ecrire","Écrire","var(--ecrire)"],
-  ["carnets","Carnets","var(--carnets)"], ["famille","Famille","var(--famille)"],
-  ["reglages","Réglages","var(--reglages)"]];
 const $ = s => document.querySelector(s);
 const ech = t => (t||"").replace(/[&<>"]/g, c =>
   ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const membre = id => S.donnees?.famille.find(m => m.id === id);
-const photosDuMois = () => (S.donnees?.photos||[])
-  .filter(p => !p.supprime && (p.date||"").startsWith(S.mois));
+const vivantes = () => (S.donnees?.photos||[]).filter(p => !p.supprime);
+const photosDuMois = () => vivantes().filter(p => (p.date||"").startsWith(S.mois));
+const jourCourt = iso => { const d = new Date(iso+"T12:00:00");
+  return `${JOURS[d.getDay()]} ${d.getDate()} ${MOIS[d.getMonth()]}`; };
 
-function toast(msg, err){
-  document.querySelectorAll(".toast").forEach(t => t.remove());
+function mot(texte, rate){
+  document.querySelectorAll(".mot").forEach(t => t.remove());
   const d = document.createElement("div");
-  d.className = "toast" + (err ? " err" : ""); d.textContent = msg;
-  document.body.appendChild(d); setTimeout(() => d.remove(), err ? 7000 : 3500);
+  d.className = "mot" + (rate ? " raté" : ""); d.textContent = texte;
+  document.body.appendChild(d); setTimeout(() => d.remove(), rate ? 6500 : 3200);
 }
+const toast = mot;
 
+/* Icônes : trait de 1.6, dessinées pour cette barre. */
+const I = {
+  photos: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    stroke-width="1.6"><rect x="3" y="5" width="18" height="14" rx="2.5"/>
+    <circle cx="8.5" cy="10" r="1.6"/><path d="M4 17l4.5-4.5 3.5 3.5 3-2.5L20 17"/></svg>`,
+  ecrire: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    stroke-width="1.6"><path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3z"/><path d="M14.5 7.5l3 3"/></svg>`,
+  carnets: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    stroke-width="1.6"><path d="M5 4.5h11a2.5 2.5 0 0 1 2.5 2.5v13H7.5A2.5 2.5 0 0 1 5 17.5z"/>
+    <path d="M5 17.5A2.5 2.5 0 0 1 7.5 15h11"/></svg>`,
+  reglages: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    stroke-width="1.6"><circle cx="12" cy="12" r="3.2"/>
+    <path d="M12 3v2.2M12 18.8V21M3 12h2.2M18.8 12H21M5.6 5.6l1.6 1.6M16.8 16.8l1.6 1.6M18.4 5.6l-1.6 1.6M7.2 16.8l-1.6 1.6"/></svg>`,
+  plus: `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>`,
+  gauche: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    stroke-width="1.8"><path d="M15 5l-7 7 7 7"/></svg>`,
+  droite: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    stroke-width="1.8"><path d="M9 5l7 7-7 7"/></svg>`,
+  fermer: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    stroke-width="1.8"><path d="M6 6l12 12M18 6L6 18"/></svg>`,
+};
+const ONGLETS = [["photos","Photos",I.photos], ["ecrire","Écrire",I.ecrire],
+                 ["carnets","Carnets",I.carnets], ["reglages","Réglages",I.reglages]];
+const PELLICULE = new Set(["photos"]);
+
+/* ── rendu ───────────────────────────────────────────────────────────────── */
 function render(){
-  if(!S.pret) return $("#racine").innerHTML = `<div class="accueil">
-    <h1>Photothèque familiale</h1>
-    <p class="sous">Déposez les photos de la famille depuis votre téléphone, rangez-les par
-       journée, dites qui était là, racontez en deux lignes — et fabriquez le carnet
-       imprimable du mois ou de l’année.</p>
-    <p class="sous" style="text-align:left">
-      Les photos et les carnets sont rangés dans <b>votre</b> Google Drive, dans un dossier
-      « Photothèque » que vous pouvez ouvrir et déplacer vous-même. Les textes et les
-      étiquettes vont dans l’espace privé de l’application. Rien n’est conservé ailleurs :
-      il n’existe aucune base de données centrale, aucune publicité, aucun traqueur.
-      L’application ne demande que l’accès aux fichiers qu’elle crée elle-même : elle ne
-      peut pas lire le reste de votre Drive.</p>
-    <button class="bouton fort" data-a="connexion">Se connecter avec Google</button>
-    <p class="sous" style="margin-top:20px">
-      <a href="confidentialite.html" style="color:var(--lampe)">Règles de confidentialité</a>
-      &nbsp;·&nbsp;
-      <a href="conditions.html" style="color:var(--lampe)">Conditions d’utilisation</a></p></div>`;
-
-  const vues = {photos:vuePhotos, ecrire:vueEcrire, carnets:vueCarnets,
-                famille:vueFamille, reglages:vueReglages};
-  $("#racine").innerHTML = `
-    <div class="haut">
-      <div class="rang1"><h1 class="marque">Photothèque</h1>
-        <button class="mini" data-a="deposer">＋ Déposer</button></div>
-      <nav class="onglets">${ONGLETS.map(([id,nom,c]) =>
-        `<button class="onglet" data-a="onglet" data-id="${id}" style="--c:${c}"
-          aria-current="${S.onglet===id}">${nom}</button>`).join("")}</nav>
-    </div>
-    <main class="page">${(vues[S.onglet]||vuePhotos)()}</main>
-    ${S.avancement ? `<div class="barrebas"><span style="flex:1">${ech(S.avancement.texte)}</span>
-      <div class="jauge" style="width:120px"><i style="width:${S.avancement.part}%"></i></div></div>` : ""}`;
-  for(const img of document.querySelectorAll("img[data-vignette]")){
-    const src = S.urls.get(img.dataset.vignette);
-    if(src) img.src = src;
+  const r = $("#racine");
+  if(!S.pret){
+    document.body.className = "monde-pellicule";
+    r.innerHTML = accueil();
+    return;
   }
+  document.body.className = PELLICULE.has(S.onglet) ? "monde-pellicule" : "monde-papier";
+  const vues = {photos:vuePhotos, ecrire:vueEcrire, carnets:vueCarnets, reglages:vueReglages};
+  r.innerHTML = (S.photo ? visionneuse() : "")
+    + `<div class="ecran">${(vues[S.onglet]||vuePhotos)()}</div>`
+    + (S.modeChoix && S.onglet === "photos" ? barreChoix() : barreBasse())
+    + (S.avancement ? progres() : "");
+  if(S.onglet === "photos" && !S.photo) posterVignettes();
+  const t = $("#saisie"); if(t){ t.value = S.brouillon; ajuster(t); }
 }
 
+const accueil = () => `<div class="ecran"><div class="vide" style="padding-top:14vh">
+  <p style="font-size:30px">Photothèque familiale</p>
+  <small>Déposez les photos depuis votre téléphone, rangez-les par journée, dites qui était
+     là — et fabriquez le carnet imprimable du mois ou de l’année. Tout reste dans votre
+     Google Drive.</small>
+  <button class="bouton fort" data-a="connexion" style="margin-top:8px">Se connecter avec Google</button>
+  <small style="margin-top:20px"><a href="confidentialite.html" style="color:var(--sourd)">Confidentialité</a>
+    &nbsp;&nbsp;<a href="conditions.html" style="color:var(--sourd)">Conditions</a></small>
+</div></div>`;
+
+const progres = () => `<div class="progres">
+  <div class="txt"><span style="flex:1">${ech(S.avancement.texte)}</span>
+    <span class="sourd">${S.avancement.part}%</span></div>
+  <i style="width:${S.avancement.part}%"></i></div>`;
+
+const barreBasse = () => `<nav class="barre">
+  ${ONGLETS.slice(0,2).map(o => btnOnglet(o)).join("")}
+  <button class="btn-depot" data-a="deposer" aria-label="Déposer des photos">${I.plus}</button>
+  ${ONGLETS.slice(2).map(o => btnOnglet(o)).join("")}</nav>`;
+const btnOnglet = ([id,nom,icone]) => `<button class="btn-onglet" data-a="onglet" data-id="${id}"
+  aria-current="${S.onglet===id}">${icone}<span>${nom}</span></button>`;
+
+const barreChoix = () => `<div class="barre-choix">
+  <button class="bouton plat" data-a="annuler-choix">Annuler</button>
+  <span class="sourd" style="flex:1; text-align:center">${S.selection.size} choisie(s)</span>
+  <button class="bouton fort" data-a="carnet-selection"
+    ${S.selection.size?"":"disabled"}>Faire un carnet</button></div>`;
+
+/* ── photos ──────────────────────────────────────────────────────────────── */
 function vuePhotos(){
-  if(S.photo) return vuePhoto();
   const photos = photosDuMois();
   const jours = {};
   for(const p of photos) (jours[p.date] = jours[p.date] || []).push(p);
   const dates = Object.keys(jours).sort().reverse();
-  const total = (S.donnees.photos||[]).filter(p => !p.supprime).length;
-  return `
-  <div class="mois-nav">
-    <button class="mini" data-a="mois" data-pas="-1">‹</button>
-    <b>${moisLong(S.mois + "-01")}</b>
-    <button class="mini" data-a="mois" data-pas="1">›</button>
-    <button class="mini" data-a="mode-choisir"
-      aria-pressed="${S.modeChoix}" style="${S.modeChoix
-        ? "background:var(--lampe); color:#17222B; border-color:var(--lampe)" : ""}"
-      >${S.modeChoix ? "Choix en cours" : "Choisir"}</button>
-  </div>
-  <p class="sous" style="text-align:center">${photos.length} photo${photos.length>1?"s":""} ce mois-ci
-     · ${total} en tout${S.selection.size ? ` · ${S.selection.size} sélectionnée(s)` : ""}</p>
-  ${S.selection.size ? `<div class="ligne" style="justify-content:center">
-    <button class="bouton" data-a="carnet-selection">Faire un carnet de la sélection</button>
-    <button class="mini" data-a="vider-selection">Annuler la sélection</button></div>` : ""}
-  ${dates.length ? dates.map(d => `
-    <section class="jour">
+  const total = vivantes().length;
+
+  const entete = `<header class="entete"><div class="entete-rang">
+    <button class="rond" data-a="mois" data-pas="-1" aria-label="Mois précédent">${I.gauche}</button>
+    <div class="mois-titre">${moisLong(S.mois + "-01")}
+      <span class="sourd">${photos.length ? `${photos.length} photo${photos.length>1?"s":""}`
+        : "aucune photo"}${total ? ` · ${total} en tout` : ""}</span></div>
+    <button class="rond" data-a="mois" data-pas="1" aria-label="Mois suivant">${I.droite}</button>
+    ${photos.length ? `<button class="bouton plat" data-a="mode-choisir"
+      style="font-size:13.5px; padding:11px 8px; color:var(--ambre)">Choisir</button>` : ""}
+  </div></header>`;
+
+  if(!dates.length) return entete + `<div class="vide">
+    <p>Rien en ${moisLong(S.mois + "-01").split(" ")[0]}.</p>
+    <small>${total ? "Change de mois avec les flèches, ou dépose de nouvelles photos."
+      : "Appuie sur le bouton ambre pour déposer tes premières photos."}</small></div>`;
+
+  return entete + `<div class="${S.modeChoix ? "choix" : ""}">` + dates.map(d => {
+    const gens = (S.donnees.jours[d]?.personnes || []).map(membre).filter(Boolean);
+    const texte = (S.donnees.entrees||[]).some(e => e.date === d && !e.supprime);
+    return `<section>
       <div class="jour-tete">
-        <span class="jour-date">${dateLongue(d)}</span>
-        <span class="sous" style="margin:0">${jours[d].length} photo${jours[d].length>1?"s":""}</span>
-        <span style="flex:1"></span>
-        <button class="mini" data-a="etiqueter" data-date="${d}">Qui est là ?</button>
-        <button class="mini" data-a="raconter" data-date="${d}">Raconter</button>
+        <span class="jour-date">${jourCourt(d)}</span>
+        <span class="compte">${jours[d].length}</span>
+        <span class="qui">${gens.map(m =>
+          `<span class="point" style="background:${m.couleur}" title="${ech(m.nom)}"></span>`).join("")}
+          ${texte ? `<span class="point" style="background:var(--ambre)" title="un texte"></span>` : ""}
+          <button class="bouton plat" data-a="jour" data-date="${d}"
+            style="font-size:12.5px; padding:2px 0 2px 8px; color:var(--ambre)"
+            >${texte ? "Relire" : "Raconter"}</button></span>
       </div>
-      <div class="ligne" style="margin-bottom:6px">${
-        ((S.donnees.jours[d]?.personnes)||[]).map(id => { const m = membre(id);
-          return m ? `<span class="puce" style="border-color:${m.couleur}; color:${m.couleur}">${ech(m.nom)}</span>`:""
-        }).join("")}
-        ${(S.donnees.entrees||[]).some(e => e.date === d && !e.supprime)
-          ? `<span class="puce" style="border-color:var(--ecrire); color:var(--ecrire)">texte</span>`:""}</div>
       <div class="grille">${jours[d].map(p => `
-        <button class="vignette" data-a="choisir" data-id="${p.id}"
+        <button class="case" data-a="ouvrir" data-id="${p.id}"
           aria-pressed="${S.selection.has(p.id)}">
-          <img data-vignette="${p.id}" alt="${ech(p.nom||"")}" loading="lazy">
-          <span class="coche">✓</span></button>`).join("")}</div>
-    </section>`).join("")
-  : `<p class="vide">Aucune photo ce mois-ci.<br>Appuie sur « Déposer » pour en ajouter.</p>`}`;
+          <img data-photo="${p.id}" alt="" decoding="async">
+          <span class="coche"></span></button>`).join("")}</div>
+    </section>`;
+  }).join("") + `</div>`;
 }
 
-function vuePhoto(){
-  const p = (S.donnees.photos||[]).find(x => x.id === S.photo);
-  if(!p) return `<p class="vide">Photo introuvable.</p>`;
-  const grand = S.urls.get("grand:" + p.id);
+function posterVignettes(){
+  for(const img of document.querySelectorAll("img[data-photo]")){
+    const src = S.urls.get(img.dataset.photo);
+    if(src){ img.src = src; img.classList.add("vu"); }
+  }
+}
+
+/* ── visionneuse ─────────────────────────────────────────────────────────── */
+function visionneuse(){
+  const liste = photosDuMois();
+  const i = liste.findIndex(p => p.id === S.photo);
+  const p = liste[i];
+  if(!p) return "";
+  const grand = S.urls.get("grand:" + p.id) || S.urls.get(p.id);
   const original = p.original && !p.identique;
-  return `<div class="visio">
-    <div class="ligne" style="padding:8px 12px">
-      <button class="mini" data-a="fermer-photo">‹ Retour</button>
-      <span style="flex:1"></span>
-      <span class="sous" style="margin:0">${dateLongue(p.date)}${p.heure ? " · " + p.heure : ""}</span>
+  const tourne = {3:180, 6:90, 8:270}[p.orientation] || 0;
+  return `<div class="visio" id="visio">
+    <div class="visio-haut">
+      <button class="rond" data-a="fermer-photo" aria-label="Fermer">${I.fermer}</button>
+      <span class="quand">${jourCourt(p.date)}${p.heure ? " · " + p.heure : ""}</span>
+      <span style="width:36px"></span>
     </div>
-    <div class="visio-image">${grand
-      ? `<img src="${grand}" alt="${ech(p.nom||"")}"
-           style="transform:rotate(${{3:180,6:90,8:270}[p.orientation]||0}deg)">`
-      : `<span class="sous">Chargement…</span>`}</div>
+    <div class="visio-scene" id="scene">
+      ${grand ? `<img src="${grand}" alt="" style="transform:rotate(${tourne}deg)">`
+              : `<span class="sourd">chargement…</span>`}
+      ${i > 0 ? `<button class="fleche g" data-a="voisine" data-pas="-1">${I.gauche}</button>` : ""}
+      ${i < liste.length-1 ? `<button class="fleche d" data-a="voisine" data-pas="1">${I.droite}</button>` : ""}
+    </div>
     <div class="visio-bas">
-      <p class="sous" style="margin:0 0 10px">
-        ${ech(p.nom||"")} · tirage ${p.l}×${p.h} (${enMo(p.taille)} Mo)
-        ${p.identique ? " · l’original est ce tirage (photo déjà petite)"
-          : original ? ` · original ${p.lOrig}×${p.hOrig} (${enMo(p.tailleOriginale)} Mo)`
-          : " · <b style=\"color:var(--orange)\">original non conservé</b>"}</p>
-      <div class="ligne">
-        ${original || p.identique
-          ? `<button class="bouton fort" data-a="telecharger" data-id="${p.id}"
-               data-quoi="original">Télécharger en qualité d’origine</button>` : ""}
-        <button class="bouton" data-a="telecharger" data-id="${p.id}"
-          data-quoi="tirage">Télécharger le tirage</button>
+      <span class="info">${i+1} sur ${liste.length} · tirage ${p.l}×${p.h}, ${enMo(p.taille)} Mo${
+        p.identique ? " · c’est aussi l’original"
+        : original ? ` · original ${p.lOrig}×${p.hOrig}, ${enMo(p.tailleOriginale)} Mo`
+        : " · pas d’original gardé"}</span>
+      <div class="actions">
+        ${original || p.identique ? `<button class="bouton fort" data-a="telecharger"
+          data-id="${p.id}" data-quoi="original">Qualité d’origine</button>` : ""}
+        <button class="bouton" data-a="telecharger" data-id="${p.id}" data-quoi="tirage">Tirage</button>
         <span style="flex:1"></span>
-        <button class="mini" data-a="retirer-photo" data-id="${p.id}">Retirer</button>
+        <button class="bouton plat" data-a="retirer-photo" data-id="${p.id}"
+          style="color:var(--rouge)">Retirer</button>
       </div>
     </div></div>`;
 }
 
+/* ── écrire ──────────────────────────────────────────────────────────────── */
 function vueEcrire(){
-  const duJour = (S.donnees.photos||[]).filter(p => p.date === S.date && !p.supprime);
-  const existante = (S.donnees.entrees||[]).find(e => e.date === S.date && !e.supprime);
-  return `
-  <h2 class="titre">Raconter</h2>
-  <label class="champ">Jour<input type="date" id="date" data-a="date" value="${S.date}"></label>
-  <p class="sous">${duJour.length} photo${duJour.length>1?"s":""} ce jour-là${
-    existante ? " · un texte existe déjà, il sera remplacé et l’ancien archivé" : ""}</p>
-  <label class="ligne" style="margin-bottom:8px"><input type="checkbox" data-a="relance"
-    ${S.relance?"checked":""}> <span class="sous" style="margin:0">Claude me relance</span></label>
-  ${S.conversation.length ? `<div class="fil">${S.conversation.map(m =>
-    `<div class="${m.role==="assistant"?"claude":"moi"}"><div class="bulle">${ech(m.texte)}</div></div>`
-    ).join("")}${S.attente ? `<div class="claude"><div class="bulle">…</div></div>`:""}</div>` : ""}
-  <div class="carte">
-    <textarea class="saisie" id="saisie" data-a="saisie"
-      placeholder="Ce qui s’est passé, ce qui a été dit…"></textarea>
-    <div class="ligne"><button class="mini" data-a="envoyer">Envoyer</button>
+  const duJour = vivantes().filter(p => p.date === S.date);
+  const gens = (S.donnees.jours[S.date]?.personnes || []);
+  const deja = (S.donnees.entrees||[]).find(e => e.date === S.date && !e.supprime);
+  return `<header class="entete"><div class="entete-rang"><h1>Raconter</h1>
+    <input type="date" data-a="date" value="${S.date}"
+      style="border:1px solid #DCD2BE; border-radius:9px; padding:7px 9px; background:#fff;
+             color:var(--encre); color-scheme:light"></div></header>
+  <div class="feuille">
+    <p class="chapeau">${jourCourt(S.date)} — ${duJour.length} photo${duJour.length>1?"s":""}${
+      deja ? " · un texte existe déjà, le garder à nouveau archivera l’ancien" : ""}</p>
+
+    <p class="chapeau" style="margin-bottom:8px">Qui était là</p>
+    <div class="ligne">${(S.donnees.famille||[]).map(m => `
+      <button class="etiquette" data-a="qui" data-id="${m.id}"
+        aria-pressed="${gens.includes(m.id)}"
+        style="${gens.includes(m.id) ? `background:${m.couleur}` : ""}">${ech(m.nom)}</button>`).join("")}</div>
+
+    ${S.conversation.map(m => `<div class="echange ${m.role==="assistant"?"claude":"moi"}"
+      >${ech(m.texte)}</div>`).join("")}
+    ${S.attente ? `<div class="echange claude sourd">…</div>` : ""}
+
+    <textarea class="zone" id="saisie" data-a="saisie" style="margin-top:14px"
+      placeholder="Ce qui s’est passé, ce qui a été dit, ce qu’on veut se rappeler…"></textarea>
+    <div class="ligne" style="margin-top:12px">
+      <label class="ligne" style="gap:7px; font-size:13px; color:var(--encre-sourd)">
+        <input type="checkbox" data-a="relance" ${S.relance?"checked":""}> Claude me relance</label>
       <span style="flex:1"></span>
+      ${S.relance ? `<button class="bouton" data-a="envoyer">Envoyer</button>` : ""}
       <button class="bouton fort" data-a="garder"
-        ${S.conversation.length?"":"disabled"}>${S.occupe?"…":"Garder dans la photothèque"}</button></div>
-  </div>
-  ${existante ? `<div class="carte"><b style="font-family:var(--serif)">${ech(existante.titre)}</b>
-    <div class="entree-texte" style="margin-top:8px">${ech(existante.texte)}</div></div>`:""}`;
+        ${S.conversation.length || S.brouillon.trim() ? "" : "disabled"}>${
+          S.occupe ? "…" : "Garder"}</button>
+    </div>
+    ${deja ? `<div class="fiche"><b style="font-family:var(--serif); font-size:18px; font-weight:400"
+      >${ech(deja.titre)}</b>
+      <div style="font-family:var(--serif); font-size:16.5px; line-height:1.65; margin-top:8px;
+        white-space:pre-wrap">${ech(deja.texte)}</div></div>` : ""}
+  </div>`;
 }
 
+/* ── carnets ─────────────────────────────────────────────────────────────── */
 function vueCarnets(){
-  const cle = S.mois, annee = S.mois.slice(0,4);
-  return `
-  <h2 class="titre">Carnets</h2>
-  <p class="sous">Un carnet garde la trace des photos et des textes qui l’ont produit.
-     S’ils bougent, sa pastille passe à l’orange.</p>
-  <div class="ligne">
-    <button class="bouton" data-a="carnet" data-type="mensuel" data-cle="${cle}">
-      Carnet de ${moisLong(cle + "-01")}</button>
-    <button class="bouton" data-a="carnet" data-type="annuel" data-cle="${annee}">
-      Carnet de l’année ${annee}</button>
-  </div>
-  ${S.bilan ? `<div class="bilan"><b>${S.bilan.pages} pages</b> · ${S.bilan.jours} jours ·
-    ${S.bilan.photos} photos · ${S.bilan.format} · ${S.bilan.poidsMo} Mo
-    ${S.bilan.avertissements?.length ? `<ul>${S.bilan.avertissements.map(a =>
-      `<li>${ech(a)}</li>`).join("")}</ul>`:""}</div>`:""}
-  ${(S.donnees.carnets||[]).filter(c => !c.supprime).map(c => {
-    const e = etatCarnet(c, S.donnees);
-    return `<div class="carte"><div class="ligne">
-      <span class="pastille" style="background:var(--${e.pastille})"></span>
-      <b style="font-family:var(--serif); font-size:16px">${ech(c.titre)}</b>
-      <span class="sous" style="margin:0">${c.pages} pages · ${c.photos} photos</span>
-      <span style="flex:1"></span>
-      <button class="mini" data-a="ouvrir-carnet" data-id="${c.id}">Ouvrir</button>
-      <button class="mini" data-a="refaire" data-id="${c.id}">Refaire</button></div>
-      ${e.motifs.length ? `<p class="sous" style="margin:8px 0 0; color:var(--orange)">
-        ${e.motifs.map(ech).join(" · ")}</p>`:""}</div>`;
-  }).join("") || `<p class="vide">Aucun carnet pour l’instant.</p>`}`;
+  const annee = S.mois.slice(0,4);
+  const carnets = (S.donnees.carnets||[]).filter(c => !c.supprime);
+  return `<header class="entete"><div class="entete-rang"><h1>Carnets</h1></div></header>
+  <div class="feuille">
+    <p class="chapeau">Un carnet retient les photos et les textes qui l’ont produit.
+       Quand ils bougent, il le dit et se refait en un geste.</p>
+    <div class="ligne">
+      <button class="bouton fort" data-a="carnet" data-type="mensuel" data-cle="${S.mois}"
+        ${S.occupe?"disabled":""}>${moisLong(S.mois+"-01")}</button>
+      <button class="bouton" data-a="carnet" data-type="annuel" data-cle="${annee}"
+        ${S.occupe?"disabled":""}>Année ${annee}</button>
+    </div>
+    ${S.bilan ? `<div class="fiche"><b>${S.bilan.pages} pages</b> · ${S.bilan.jours} jours ·
+      ${S.bilan.photos} photos · ${S.bilan.format} · ${S.bilan.poidsMo} Mo
+      ${S.bilan.avertissements?.length ? `<ul style="margin:8px 0 0; padding-left:18px;
+        color:#9A4A38">${S.bilan.avertissements.map(a => `<li>${ech(a)}</li>`).join("")}</ul>`:""}
+      </div>`:""}
+    ${carnets.length ? carnets.map(c => {
+      const e = etatCarnet(c, S.donnees);
+      const couleur = {vert:"var(--vert)", orange:"var(--ambre)", rouge:"var(--rouge)"}[e.pastille];
+      return `<div class="fiche">
+        <div class="ligne">
+          <span class="point" style="background:${couleur}"></span>
+          <b style="font-family:var(--serif); font-size:19px; font-weight:400">${ech(c.titre)}</b>
+          <span style="flex:1"></span>
+          <button class="bouton plat" data-a="ouvrir-carnet" data-id="${c.id}">Ouvrir</button>
+          <button class="bouton plat" data-a="refaire" data-id="${c.id}"
+            ${S.occupe?"disabled":""}>Refaire</button>
+        </div>
+        <p class="chapeau" style="margin:6px 0 0">${c.pages} pages · ${c.photos} photos${
+          c.versions?.length ? ` · ${pluriel(c.versions.length,
+            "version archivée", "versions archivées")}` : ""}</p>
+        ${e.motifs.length ? `<p style="margin:6px 0 0; font-size:13px; color:#9A6A1E">
+          ${e.motifs.map(ech).join(" · ")}</p>`:""}</div>`;
+    }).join("") : `<p class="chapeau" style="margin-top:22px">Aucun carnet pour l’instant.</p>`}
+  </div>`;
 }
 
-function vueFamille(){
-  return `<h2 class="titre">La famille</h2>
-  <p class="sous">Les prénoms servent à étiqueter les journées et à filtrer.</p>
-  <div class="carte" id="fam">${(S.donnees.famille||[]).map(m => `
-    <div class="ligne" style="margin-top:8px" data-id="${m.id}">
-      <input type="color" value="${m.couleur}" style="width:36px; height:36px">
-      <input value="${ech(m.nom)}" placeholder="Prénom" style="flex:1; background:var(--fond3);
-        border:1px solid var(--trait); border-radius:8px; padding:8px 10px">
-      <input value="${ech(m.role||"")}" placeholder="lien" style="flex:1; background:var(--fond3);
-        border:1px solid var(--trait); border-radius:8px; padding:8px 10px"></div>`).join("")}</div>
-  <div class="ligne" style="margin-top:12px">
-    <button class="bouton" data-a="ajouter-membre">Ajouter</button>
-    <span style="flex:1"></span>
-    <button class="bouton fort" data-a="garder-famille">Enregistrer</button></div>`;
-}
-
+/* ── réglages ────────────────────────────────────────────────────────────── */
 function vueReglages(){
-  const photos = (S.donnees.photos||[]).filter(p => !p.supprime);
   const place = placeOccupee(S.donnees.photos);
-  const sansOriginal = photos.length - place.avecOriginal;
-  return `<h2 class="titre">Réglages</h2>
-  <p class="sous">Version ${VERSION} · ${photos.length} photos ·
-     ${enMo(place.total)} Mo dans ton Drive</p>
-  <div class="carte">
-    <b>Qualité conservée</b>
-    <label class="ligne" style="margin-top:10px"><input type="checkbox" data-a="originaux"
-      ${reglages().originaux !== false ? "checked" : ""}>
-      <span>Garder aussi la photo d’origine</span></label>
-    <p class="sous" style="margin-top:8px">
-      Le tirage 1600 px sert à afficher et à imprimer : il suffit pour un livre.
-      L’original ne se télécharge qu’à la demande, depuis la photo.
-      Une photo déjà sous 1600 px n’est pas dupliquée.</p>
-    <table style="width:100%; margin-top:10px; font-size:13px">
-      <tr><td>Tirages 1600 px</td><td style="text-align:right">${enMo(place.tirages)} Mo</td></tr>
-      <tr><td>Originaux (${place.avecOriginal} photos)</td>
-          <td style="text-align:right">${enMo(place.originaux)} Mo</td></tr>
-      <tr><td><b>Total</b></td><td style="text-align:right"><b>${enMo(place.total)} Mo</b></td></tr>
-    </table>
-    ${sansOriginal ? `<p class="sous" style="margin-top:8px; color:var(--orange)">
-      ${sansOriginal} photo(s) sans original : déposées avant, ou pendant que l’option
-      était décochée. Les redéposer ajoutera l’original.</p>` : ""}
-    <p class="sous" style="margin-top:8px">
-      Drive gratuit : 15 Go, partagés avec le reste de ton compte. Au-delà,
-      Google One 100 Go coûte environ 2 € par mois.</p>
-  </div>
-  <div class="carte">
-    <label class="champ">Adresse du relais (la clé Anthropic y vit, jamais ici)
-      <input id="r-relais" value="${ech(CONFIG.RELAIS)}" placeholder="https://…workers.dev"></label>
-    <p class="sous" style="margin-top:10px">Le relais se règle dans le fichier index.html
-       (objet CONFIG) pour que tous tes appareils l’aient. Ce champ ne vaut que pour cet appareil.</p>
-    <div class="ligne" style="margin-top:10px">
-      <button class="bouton" data-a="garder-relais">Garder pour cet appareil</button>
-      <button class="mini" data-a="deconnexion">Se déconnecter</button></div>
-  </div>
-  <div class="carte"><b>Pages publiques</b>
-    <p class="sous" style="margin-top:8px">
-      <a href="confidentialite.html" style="color:var(--lampe)">Règles de confidentialité</a>
-      &nbsp;·&nbsp;
-      <a href="conditions.html" style="color:var(--lampe)">Conditions d’utilisation</a></p></div>
-  <div class="carte"><b>Où sont tes affaires</b>
-    <p class="sous" style="margin-top:8px">
-      Les photos et les carnets : dossier « ${ech(CONFIG.DOSSIER)} » de ton Drive, visible et
-      déplaçable par toi. Les textes, les étiquettes et les fiches : espace privé de
-      l’application, invisible mais rattaché à ton compte. Rien sur un serveur tiers.
-      L’application ne demande que les autorisations « fichiers créés par l’app » et
-      « espace privé » : elle ne peut pas lire le reste de ton Drive.</p></div>`;
+  const n = vivantes().length;
+  const sansOriginal = n - place.avecOriginal;
+  return `<header class="entete"><div class="entete-rang"><h1>Réglages</h1></div></header>
+  <div class="feuille">
+    <p class="chapeau">Version ${VERSION} · ${n} photo${n>1?"s":""} ·
+       ${enMo(place.total)} Mo dans ton Drive</p>
+
+    <div class="fiche">
+      <b style="font-family:var(--serif); font-size:19px; font-weight:400">Qualité gardée</b>
+      <label class="ligne" style="margin-top:10px; gap:8px">
+        <input type="checkbox" data-a="originaux"
+          ${reglages().originaux !== false ? "checked" : ""}>
+        <span>Garder aussi la photo d’origine</span></label>
+      <p class="chapeau" style="margin:8px 0 0">Le tirage 1600 px affiche et imprime.
+         L’original ne se télécharge qu’à la demande. Une photo déjà petite n’est pas dupliquée.</p>
+      <div class="ligne" style="margin-top:10px; font-size:13.5px">
+        <span style="flex:1">Tirages</span><span>${enMo(place.tirages)} Mo</span></div>
+      <div class="ligne" style="font-size:13.5px">
+        <span style="flex:1">Originaux (${place.avecOriginal})</span>
+        <span>${enMo(place.originaux)} Mo</span></div>
+      ${sansOriginal ? `<p style="margin:8px 0 0; font-size:13px; color:#9A6A1E">
+        ${pluriel(sansOriginal, "photo n’a pas", "photos n’ont pas")} d’original.
+        Les redéposer l’ajoutera.</p>`:""}
+    </div>
+
+    <div class="fiche">
+      <b style="font-family:var(--serif); font-size:19px; font-weight:400">La famille</b>
+      <div id="fam">${(S.donnees.famille||[]).map(m => `
+        <div class="rang-membre" data-id="${m.id}">
+          <input type="color" value="${m.couleur}" aria-label="Couleur de ${ech(m.nom)}">
+          <input value="${ech(m.nom)}" placeholder="Prénom" aria-label="Prénom">
+          <input value="${ech(m.role||"")}" placeholder="mon fils…" aria-label="Lien">
+        </div>`).join("")}</div>
+      <div class="ligne" style="margin-top:12px">
+        <button class="bouton plat" data-a="ajouter-membre">Ajouter</button>
+        <span style="flex:1"></span>
+        <button class="bouton fort" data-a="garder-famille">Enregistrer</button></div>
+    </div>
+
+    <div class="fiche">
+      <b style="font-family:var(--serif); font-size:19px; font-weight:400">Aide à l’écriture</b>
+      <label class="champ">Adresse du relais, pour cet appareil
+        <input id="r-relais" value="${ech(CONFIG.RELAIS)}" placeholder="https://…workers.dev"></label>
+      <div class="ligne" style="margin-top:12px">
+        <button class="bouton" data-a="garder-relais">Garder</button>
+        <span style="flex:1"></span>
+        <button class="bouton plat" data-a="deconnexion">Se déconnecter</button></div>
+    </div>
+
+    <p class="chapeau" style="margin-top:20px">
+      Photos et carnets : dossier « ${ech(CONFIG.DOSSIER)} » de ton Drive.
+      Textes, étiquettes et vignettes : espace privé de l’application.
+      <a href="confidentialite.html" style="color:#9A6A1E">Confidentialité</a> ·
+      <a href="conditions.html" style="color:#9A6A1E">Conditions</a></p>
+  </div>`;
 }
 
 /* ── actions ─────────────────────────────────────────────────────────────── */
 const ACTIONS = {
   connexion: async () => { await connexion(true); await demarrerSession(); },
   deconnexion: () => { JETON = null; S.pret = false; render(); },
-  onglet: (el) => { S.onglet = el.dataset.id; S.bilan = null; render(); },
+  onglet: (el) => { S.onglet = el.dataset.id; S.bilan = null; S.modeChoix = false;
+                    S.selection.clear(); render();
+                    if(S.onglet === "photos") chargerVignettes(); },
+  deposer: () => $("#fichiers").click(),
   mois: (el) => {
     const d = new Date(S.mois + "-01T12:00:00");
     d.setMonth(d.getMonth() + Number(el.dataset.pas));
-    S.mois = d.toISOString().slice(0,7); render(); chargerVignettes();
+    S.mois = d.toISOString().slice(0,7); S.selection.clear(); render(); chargerVignettes();
   },
-  deposer: () => $("#fichiers").click(),
-  "mode-choisir": () => { S.modeChoix = !S.modeChoix; if(!S.modeChoix) S.selection.clear();
-                          render(); },
-  choisir: async (el) => {
+  "mode-choisir": () => { S.modeChoix = true; render(); },
+  "annuler-choix": () => { S.modeChoix = false; S.selection.clear(); render(); },
+  jour: (el) => { S.date = el.dataset.date; S.onglet = "ecrire"; S.conversation = [];
+                  S.brouillon = ""; render(); },
+
+  ouvrir: async (el) => {
     const id = el.dataset.id;
     if(S.modeChoix){
       S.selection.has(id) ? S.selection.delete(id) : S.selection.add(id);
       return render();
     }
-    S.photo = id; render();
-    if(!S.urls.has("grand:" + id)){
-      try{
-        const octets = await telecharger(id);
-        S.urls.set("grand:" + id,
-          URL.createObjectURL(new Blob([octets], {type:"image/jpeg"})));
-      }catch(e){ toast(e.message, true); }
-      render();
-    }
+    S.photo = id; render(); chargerGrande(id);
+  },
+  voisine: (el) => {
+    const liste = photosDuMois();
+    const i = liste.findIndex(p => p.id === S.photo) + Number(el.dataset.pas);
+    if(i < 0 || i >= liste.length) return;
+    S.photo = liste[i].id; render(); chargerGrande(S.photo);
   },
   "fermer-photo": () => { S.photo = null; render(); },
   telecharger: async (el) => {
-    const p = (S.donnees.photos||[]).find(x => x.id === el.dataset.id);
+    const p = vivantes().find(x => x.id === el.dataset.id);
     const original = el.dataset.quoi === "original";
-    const id = original ? (p.original || p.id) : p.id;
-    toast("Préparation du téléchargement…");
-    const octets = await telecharger(id);
+    mot("Préparation du téléchargement…");
+    const octets = await telecharger(original ? (p.original || p.id) : p.id);
     const nom = original ? p.nom : p.nom.replace(/\.\w+$/,"") + "-1600.jpg";
     const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([octets]));
-    a.download = nom; document.body.appendChild(a); a.click(); a.remove();
+    a.href = URL.createObjectURL(new Blob([octets])); a.download = nom;
+    document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 8000);
-    toast(`${nom} téléchargée (${enMo(octets.length)} Mo).`);
+    mot(`${nom} · ${enMo(octets.length)} Mo`);
   },
   "retirer-photo": async (el) => {
-    if(el.dataset.sur !== "1"){ el.dataset.sur = "1"; el.textContent = "Confirmer";
-      el.style.color = "var(--alerte)"; return; }
-    const p = (S.donnees.photos||[]).find(x => x.id === el.dataset.id);
+    if(el.dataset.sur !== "1"){ el.dataset.sur = "1"; el.textContent = "Confirmer"; return; }
+    const p = vivantes().find(x => x.id === el.dataset.id);
     p.supprime = true; p.maj = new Date().toISOString();
     await enregistrerDonnees();
     S.photo = null; render();
-    toast("Photo retirée de la photothèque. Le fichier reste dans ton Drive.");
+    mot("Photo retirée. Le fichier reste dans ton Drive.");
   },
-  "originaux": async (el) => {
-    reglages().originaux = el.checked;
-    reglages().maj = new Date().toISOString();
-    await enregistrerDonnees(); render();
-    toast(el.checked ? "Les prochains dépôts garderont l’original."
-                     : "Les prochains dépôts ne garderont que le tirage 1600 px.");
+
+  date: (el) => { S.date = el.value; render(); },
+  relance: (el) => { S.relance = el.checked; render(); },
+  qui: async (el) => {
+    const id = el.dataset.id;
+    const jour = S.donnees.jours[S.date] || {personnes:[], note:""};
+    const gens = new Set(jour.personnes || []);
+    gens.has(id) ? gens.delete(id) : gens.add(id);
+    S.donnees.jours[S.date] = {...jour, personnes:[...gens], maj:new Date().toISOString()};
+    render();
+    await enregistrerDonnees();
   },
-  "vider-selection": () => { S.selection.clear(); render(); },
-  etiqueter: (el) => etiqueterJour(el.dataset.date),
-  raconter: (el) => { S.date = el.dataset.date; S.onglet = "ecrire"; S.conversation = []; render(); },
-  date: (el) => { S.date = el.value; },
-  relance: (el) => { S.relance = el.checked; },
   envoyer: () => envoyer(),
   garder: () => garderEntree(),
+
   carnet: (el) => fabriquer({type: el.dataset.type, cle: el.dataset.cle}),
   "carnet-selection": () => fabriquer({type:"selection", photos:[...S.selection]}),
   refaire: (el) => {
@@ -1161,8 +1308,15 @@ const ACTIONS = {
     const c = (S.donnees.carnets||[]).find(x => x.id === el.dataset.id);
     if(c?.fichier) window.open(`https://drive.google.com/file/d/${c.fichier}/view`, "_blank");
   },
+
+  originaux: async (el) => {
+    reglages().originaux = el.checked; reglages().maj = new Date().toISOString();
+    await enregistrerDonnees(); render();
+    mot(el.checked ? "Les prochains dépôts garderont l’original."
+                   : "Les prochains dépôts ne garderont que le tirage.");
+  },
   "ajouter-membre": () => {
-    S.donnees.famille.push({id:"m" + Date.now(), nom:"", role:"", couleur:"#8FA6B2", maj:""});
+    S.donnees.famille.push({id:"m"+Date.now(), nom:"", role:"", couleur:"#B9A7D8", maj:""});
     render();
   },
   "garder-famille": async () => {
@@ -1171,24 +1325,65 @@ const ACTIONS = {
       const [c,n,r] = l.querySelectorAll("input");
       return {id:l.dataset.id, nom:n.value.trim(), role:r.value.trim(), couleur:c.value, maj};
     }).filter(m => m.nom);
-    await enregistrerDonnees(); render(); toast("Famille enregistrée.");
+    await enregistrerDonnees(); render(); mot("Famille enregistrée.");
   },
   "garder-relais": () => {
     CONFIG.RELAIS = $("#r-relais").value.trim();
     try{ localStorage.setItem("relais", CONFIG.RELAIS); }catch{}
-    toast("Relais enregistré pour cet appareil.");
+    mot("Relais enregistré pour cet appareil.");
   },
 };
+
 document.addEventListener("click", e => {
   const el = e.target.closest("[data-a]");
   if(!el) return;
   const f = ACTIONS[el.dataset.a];
-  if(f){ e.preventDefault(); Promise.resolve(f(el)).catch(err => toast(err.message, true)); }
+  if(f && !["saisie","date","relance","originaux","qui"].includes(el.dataset.a)){
+    e.preventDefault(); Promise.resolve(f(el)).catch(err => mot(err.message, true));
+  }
+  if(f && el.dataset.a === "qui"){ e.preventDefault();
+    Promise.resolve(f(el)).catch(err => mot(err.message, true)); }
 });
 document.addEventListener("change", e => {
   const el = e.target.closest("[data-a]");
-  if(el && ["date","relance","originaux"].includes(el.dataset.a)) ACTIONS[el.dataset.a](el);
+  if(el && ["date","relance","originaux"].includes(el.dataset.a))
+    Promise.resolve(ACTIONS[el.dataset.a](el)).catch(err => mot(err.message, true));
 });
+document.addEventListener("input", e => {
+  if(e.target.id === "saisie"){ S.brouillon = e.target.value; ajuster(e.target); }
+});
+document.addEventListener("keydown", e => {
+  if(S.photo){
+    if(e.key === "Escape") ACTIONS["fermer-photo"]();
+    if(e.key === "ArrowLeft") ACTIONS.voisine({dataset:{pas:"-1"}});
+    if(e.key === "ArrowRight") ACTIONS.voisine({dataset:{pas:"1"}});
+  }
+});
+/* glisser du doigt dans la visionneuse */
+let depart = null;
+document.addEventListener("touchstart", e => {
+  if(S.photo && e.touches.length === 1) depart = {x:e.touches[0].clientX, y:e.touches[0].clientY};
+}, {passive:true});
+document.addEventListener("touchend", e => {
+  if(!depart || !S.photo) return;
+  const t = e.changedTouches[0];
+  const dx = t.clientX - depart.x, dy = t.clientY - depart.y;
+  depart = null;
+  if(Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy)*1.5)
+    ACTIONS.voisine({dataset:{pas: dx < 0 ? "1" : "-1"}});
+  else if(dy > 90 && Math.abs(dy) > Math.abs(dx)) ACTIONS["fermer-photo"]();
+}, {passive:true});
+
+const ajuster = t => { t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight,260)+"px"; };
+
+async function chargerGrande(id){
+  if(S.urls.has("grand:" + id)) return;
+  try{
+    const octets = await telecharger(id);
+    S.urls.set("grand:" + id, URL.createObjectURL(new Blob([octets], {type:"image/jpeg"})));
+    if(S.photo === id) render();
+  }catch(e){ mot(e.message, true); }
+}
 
 /* ── dépôt des photos ────────────────────────────────────────────────────── */
 async function mesurer(fichier){
@@ -1260,6 +1455,7 @@ async function deposer(fichiers){
   await enregistrerDonnees();
   S.avancement = null;
   if(n) S.mois = (S.donnees.photos.at(-1)?.date || S.mois).slice(0,7);
+  S.onglet = "photos";
   render();
   toast(`${n - doublons} photo(s) ajoutée(s)`
     + (doublons ? `, ${doublons} doublon(s) ignoré(s)` : "")
@@ -1293,10 +1489,10 @@ function etiqueterJour(date){
 
 /* ── écriture ────────────────────────────────────────────────────────────── */
 async function envoyer(){
-  const texte = ($("#saisie")?.value || "").trim();
+  const texte = (S.brouillon || "").trim();
   if(!texte) return;
   S.conversation.push({role:"user", texte});
-  $("#saisie").value = "";
+  S.brouillon = "";
   if(!S.relance || !CONFIG.RELAIS){ render(); return; }
   S.attente = true; render();
   try{
@@ -1308,6 +1504,11 @@ async function envoyer(){
 
 async function garderEntree(){
   if(S.occupe) return;
+  if(S.brouillon.trim()){
+    S.conversation.push({role:"user", texte:S.brouillon.trim()});
+    S.brouillon = "";
+  }
+  if(!S.conversation.length) return;
   S.occupe = true; render();
   try{
     const brut = S.conversation.filter(m => m.role === "user").map(m => m.texte).join("\n\n");
