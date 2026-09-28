@@ -220,7 +220,7 @@ const CONFIG = {
             gras:"polices/CrimsonText-Bold.ttf",
             italique:"polices/CrimsonText-Italic.ttf"},
 };
-const VERSION = 8;
+const VERSION = 9;
 const PORTEES = "https://www.googleapis.com/auth/drive.file "
               + "https://www.googleapis.com/auth/drive.appdata";
 
@@ -1358,7 +1358,8 @@ function vueReglages(){
         <span>${enMo(place.originaux)} Mo</span></div>
       ${sansOriginal ? `<p style="margin:8px 0 0; font-size:13px; color:#9A6A1E">
         ${pluriel(sansOriginal, "photo n’a pas", "photos n’ont pas")} d’original.
-        Les redéposer l’ajoutera.</p>`:""}
+        Redépose les mêmes fichiers : l’original sera ajouté à la photo existante,
+        sans créer de doublon.</p>`:""}
     </div>
 
     <div class="fiche">
@@ -1685,7 +1686,7 @@ async function deposer(fichiers){
 
 async function deposerVraiment(fichiers){
   await dossierPhotos();
-  let n = 0, doublons = 0, sansOriginal = 0;
+  let n = 0, doublons = 0, sansOriginal = 0, completees = 0;
   for(const fichier of fichiers){
     n++;
     S.avancement = {texte:`Photo ${n} sur ${fichiers.length} · garde l’onglet ouvert`,
@@ -1695,7 +1696,28 @@ async function deposerVraiment(fichiers){
       if(!fichier.type.startsWith("image/")){ toast(`${fichier.name} : pas une image`, true); continue; }
       const brut = new Uint8Array(await fichier.arrayBuffer());
       const sha = await empreinte(brut);
-      if((S.donnees.photos||[]).some(p => p.sha === sha && !p.supprime)){ doublons++; continue; }
+      const connue = (S.donnees.photos||[]).find(p => p.sha === sha && !p.supprime);
+      if(connue){
+        // déjà là : on n'en fait pas un doublon, mais on complète l'original s'il manque
+        const mesureC = await mesurer(fichier);
+        const quoiC = decisionDepot(mesureC, reglages());
+        if(quoiC.original && !connue.original){
+          S.avancement = {texte:`Photo ${n} sur ${fichiers.length} · original manquant, ajout`,
+                          part: Math.round(n/fichiers.length*100)};
+          render();
+          try{
+            const dossierO = await dossierChemin(cheminPhoto(connue, true));
+            connue.original = await televerser(fichier, nomFichier(connue, true),
+              [dossierO], fichier.type || "image/jpeg");
+            connue.tailleOriginale = fichier.size;
+            connue.lOrig = mesureC.l; connue.hOrig = mesureC.h;
+            connue.maj = new Date().toISOString();
+            completees++;
+          }catch(e){ toast(`${fichier.name} : original refusé (${e.message})`, true); }
+        } else doublons++;
+        if(n % 10 === 0) await enregistrerDonnees();
+        continue;
+      }
       const exif = lireExif(brut);
       const mesure = await mesurer(fichier);
       const quoi = decisionDepot(mesure, reglages());
@@ -1750,9 +1772,13 @@ async function deposerVraiment(fichiers){
     `${devinees} photo${devinees>1?"s":""} sans date de prise de vue, rangée${
       devinees>1?"s":""} à la date du fichier. Sélectionne-les et appuie sur Dater pour corriger.`,
     true), 3600);
-  toast(`${n - doublons} photo(s) ajoutée(s)`
-    + (doublons ? `, ${doublons} doublon(s) ignoré(s)` : "")
-    + (sansOriginal ? `, ${sansOriginal} sans original` : "") + ".");
+  const ajoutees = n - doublons - completees;
+  toast([
+    ajoutees ? pluriel(ajoutees, "photo ajoutée", "photos ajoutées") : "",
+    completees ? pluriel(completees, "original retrouvé", "originaux retrouvés") : "",
+    doublons ? pluriel(doublons, "doublon écarté", "doublons écartés") : "",
+    sansOriginal ? pluriel(sansOriginal, "original refusé", "originaux refusés") : "",
+  ].filter(Boolean).join(", ") + "." );
 }
 const enDataUrl = blob => new Promise(ok => {
   const l = new FileReader(); l.onload = () => ok(l.result); l.readAsDataURL(blob); });
