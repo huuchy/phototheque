@@ -78,6 +78,31 @@
   .jour-tete .compte{font-size:12px; color:var(--sourd)}
   .jour-tete .qui{margin-left:auto; display:flex; gap:4px; align-items:center}
   .point{width:8px; height:8px; border-radius:50%}
+  .cal{padding:6px 8px 20px}
+  .cal-entete{display:grid; grid-template-columns:repeat(7,1fr); gap:3px; margin-bottom:4px}
+  .cal-entete span{text-align:center; font-size:11px; color:var(--sourd); padding:4px 0}
+  .cal-grille{display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:3px}
+  .cal-case{position:relative; width:100%; aspect-ratio:1; min-width:0; min-height:0;
+    align-self:start; border-radius:8px; overflow:hidden; background:var(--nuit2);
+    border:1px solid transparent; display:block; padding:0}
+  .cal-case.hors{background:transparent}
+  .cal-case.pleine{border-color:var(--bord)}
+  .cal-case img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
+    opacity:.55}
+  .cal-case .num{position:absolute; top:3px; left:5px; font-size:11.5px; color:var(--clair);
+    text-shadow:0 1px 3px rgba(0,0,0,.8)}
+  .cal-case.creuse .num{color:var(--sourd); text-shadow:none}
+  .cal-case .nb{position:absolute; bottom:3px; right:5px; font-size:10.5px; color:#fff;
+    text-shadow:0 1px 3px rgba(0,0,0,.9)}
+  .cal-case .marques{position:absolute; bottom:4px; left:5px; display:flex; gap:2px}
+  .cal-case .marques i{width:5px; height:5px; border-radius:50%; display:block}
+  .cal-case .ev{position:absolute; top:4px; right:4px; width:6px; height:6px;
+    border-radius:1px; background:var(--ambre)}
+  .cal-case.aujourdhui{border-color:var(--ambre)}
+  .cal-mois{display:flex; gap:14px; align-items:baseline; padding:12px 12px 2px;
+    color:var(--sourd); font-size:12.5px}
+  .evenement-tete{display:flex; gap:8px; align-items:baseline; padding:10px 14px 6px;
+    font-family:var(--serif); font-size:15px; color:var(--ambre)}
   .grille{display:grid; grid-template-columns:repeat(3,1fr); gap:2px; padding:0 2px}
   @media(min-width:560px){.grille{grid-template-columns:repeat(5,1fr)}}
   @media(min-width:860px){.grille{grid-template-columns:repeat(7,1fr); gap:3px; padding:0 3px}}
@@ -230,7 +255,7 @@ const CONFIG = {
             gras:"polices/CrimsonText-Bold.ttf",
             italique:"polices/CrimsonText-Italic.ttf"},
 };
-const VERSION = 17;
+const VERSION = 19;
 const PORTEES = "https://www.googleapis.com/auth/drive.file "
               + "https://www.googleapis.com/auth/drive.appdata";
 
@@ -699,12 +724,16 @@ function selection(donnees, regle){
   if(regle.type === "mensuel"){ debut = regle.cle + "-01"; fin = regle.cle + "-31"; }
   else if(regle.type === "hebdo"){ debut = regle.cle; fin = jourPlus(regle.cle, 6); }
   else if(regle.type === "annuel"){ debut = regle.cle + "-01-01"; fin = regle.cle + "-12-31"; }
+  else if(regle.type === "evenement"){ debut = "0000"; fin = "9999"; }
   else { debut = "0000"; fin = "9999"; }
   const dansPeriode = d => d >= debut && d <= fin;
-  const photos = (donnees.photos||[]).filter(p => !p.supprime &&
-    (regle.type === "selection" ? (regle.photos||[]).includes(p.id) : dansPeriode(p.date)));
-  const entrees = (donnees.entrees||[]).filter(e => !e.supprime &&
-    (regle.type === "selection" ? photos.some(p => p.date === e.date) : dansPeriode(e.date)));
+  const photos = (donnees.photos||[]).filter(p => !p.supprime && (
+    regle.type === "selection" ? (regle.photos||[]).includes(p.id) :
+    regle.type === "evenement" ? p.evenement === regle.cle :
+    dansPeriode(p.date)));
+  const entrees = (donnees.entrees||[]).filter(e => !e.supprime && (
+    regle.type === "selection" || regle.type === "evenement"
+      ? photos.some(p => p.date === e.date) : dansPeriode(e.date)));
   const dates = [...new Set([...photos.map(p => p.date), ...entrees.map(e => e.date)])].sort();
   const jours = dates.map(date => ({
     date,
@@ -757,7 +786,7 @@ function fusionner(a, b){
   const out = {v:VERSION, maj: (a.maj||"") > (b.maj||"") ? a.maj : b.maj};
   out.reglages = ((a.reglages?.maj)||"") > ((b.reglages?.maj)||"")
     ? a.reglages : (b.reglages || a.reglages);
-  for(const cle of ["photos","entrees","carnets","famille"]){
+  for(const cle of ["photos","entrees","carnets","famille","evenements"]){
     const index = new Map();
     for(const el of [...(a[cle]||[]), ...(b[cle]||[])]){
       const ancien = index.get(el.id);
@@ -979,13 +1008,20 @@ async function chargerDonnees(){
   const {id, contenu} = await appdataLire(FICHIER_DONNEES);
   S.idDonnees = id;
   S.donnees = contenu || {v:VERSION, maj:new Date().toISOString(), photos:[], entrees:[],
-    carnets:[], jours:{}, reglages:{originaux:true}, famille:[
+    carnets:[], evenements:[], jours:{}, reglages:{originaux:true}, famille:[
       {id:"manon", nom:"Manon", role:"ma femme", couleur:"#D98AA0", maj:""},
       {id:"elonn", nom:"Elonn", role:"mon fils", couleur:"#7FC0A4", maj:""},
       {id:"levi", nom:"Levi", role:"mon fils", couleur:"#93ADE0", maj:""},
       {id:"yona", nom:"Yona", role:"ma fille", couleur:"#E5C158", maj:""},
       {id:"moi", nom:"Moi", role:"moi", couleur:"#B9A7D8", maj:""}]};
 }
+function evenements(){
+  if(!S.donnees.evenements) S.donnees.evenements = [];
+  return S.donnees.evenements.filter(e => !e.supprime);
+}
+const evenementsDuJour = date => evenements().filter(e => e.date === date);
+const nomEvenement = id => evenements().find(e => e.id === id)?.nom || "";
+
 function reglages(){
   if(!S.donnees.reglages) S.donnees.reglages = {originaux:true};
   return S.donnees.reglages;
@@ -1095,6 +1131,14 @@ const I = {
     stroke-width="1.8"><path d="M6 6l12 12M18 6L6 18"/></svg>`,
   actualiser: `<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor"
     stroke-width="1.7"><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 4v4h-4"/></svg>`,
+  calendrier: `<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    stroke-width="1.6"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/>
+    <path d="M3.5 9.5h17M8 3.5v3M16 3.5v3"/></svg>`,
+  mosaique: `<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    stroke-width="1.6"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/>
+    <rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/>
+    <rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/>
+    <rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg>`,
   retour: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
     stroke-width="1.7"><path d="M10 5l-7 7 7 7"/><path d="M3 12h15a3 3 0 0 1 0 6h-2"/></svg>`,
 };
@@ -1153,6 +1197,8 @@ const barreChoix = () => `<div class="barre-choix">
     S.selection.size>1?"s":""}</span>
   <button class="bouton plat" data-a="dater-selection"
     ${S.selection.size?"":"disabled"} style="color:var(--ambre)">Dater</button>
+  <button class="bouton plat" data-a="evenement-selection"
+    ${S.selection.size?"":"disabled"} style="color:var(--ambre)">Événement</button>
   <button class="bouton fort" data-a="carnet-selection"
     ${S.selection.size?"":"disabled"}>Carnet</button></div>`;
 
@@ -1173,11 +1219,24 @@ function feuillet(){
           Une seule date pour tout le lot
           <small>l’anniversaire, les vacances, le jour de la sortie</small></button>
       </div>
-      ${f.date ? `<input type="date" data-a="date-feuillet" value="${f.date}" max="${auj}">` : ""}
+      ${f.date ? `<input type="date" data-a="date-feuillet" value="${f.date}" max="${auj}">
+        ${choixEvenement(f)}` : ""}
       <div class="ligne" style="margin-top:16px">
         <button class="bouton plat" data-a="fermer-feuillet">Annuler</button>
         <span style="flex:1"></span>
         <button class="bouton fort" data-a="choisir-fichiers">Choisir les photos</button>
+      </div></div>`;
+
+  if(f.type === "evenement") return `<div class="voile" data-a="fermer-feuillet"></div>
+    <div class="feuillet">
+      <h3>Rattacher à un événement</h3>
+      <p>${pluriel(f.cible.length, "photo sera rattachée", "photos seront rattachées")}
+         à l’événement choisi, le ${jourCourt(f.date)}.</p>
+      ${choixEvenement(f)}
+      <div class="ligne" style="margin-top:16px">
+        <button class="bouton plat" data-a="fermer-feuillet">Annuler</button>
+        <span style="flex:1"></span>
+        <button class="bouton fort" data-a="appliquer-evenement">Rattacher</button>
       </div></div>`;
 
   return `<div class="voile" data-a="fermer-feuillet"></div>
@@ -1191,6 +1250,28 @@ function feuillet(){
         <span style="flex:1"></span>
         <button class="bouton fort" data-a="appliquer-date">Ranger à cette date</button>
       </div></div>`;
+}
+
+/** Le bloc « événement » d'un feuillet : ceux du jour, un nouveau, ou aucun. */
+function choixEvenement(f){
+  const dejaLa = evenementsDuJour(f.date);
+  return `<p class="chapeau" style="margin:16px 0 8px">Événement de la journée</p>
+    <div class="choix-date">
+      ${dejaLa.map(e => `<button data-a="choisir-evenement" data-id="${e.id}"
+        aria-pressed="${f.evenement === e.id}">${ech(e.nom)}
+        <small>${pluriel(vivantes().filter(p => p.evenement === e.id).length,
+          "photo déjà rattachée", "photos déjà rattachées")}</small></button>`).join("")}
+      <button data-a="choisir-evenement" data-id="__nouveau"
+        aria-pressed="${f.evenement === "__nouveau"}">Nouvel événement
+        <small>l’anniversaire, la sortie, la visite des grands-parents</small></button>
+      <button data-a="choisir-evenement" data-id=""
+        aria-pressed="${!f.evenement}">Aucun
+        <small>les photos du quotidien n’en ont pas besoin</small></button>
+    </div>
+    ${f.evenement === "__nouveau" ? `<input type="text" data-a="nom-evenement"
+      value="${ech(f.nomEvenement || "")}" placeholder="Nom de l’événement"
+      style="width:100%; padding:12px; border-radius:10px; border:1px solid #DCD2BE;
+             background:#fff; color:var(--encre)">` : ""}`;
 }
 
 /* ── photos ──────────────────────────────────────────────────────────────── */
@@ -1226,6 +1307,9 @@ function vuePhotos(){
         : "aucune photo"}${total ? ` · ${total} en tout` : ""}${
         S.chargement ? " · " + S.chargement : ""}</span></div>
     <button class="rond" data-a="mois" data-pas="1" aria-label="Mois suivant">${I.droite}</button>
+    <button class="rond" data-a="bascule-vue"
+      aria-label="${S.vue === "calendrier" ? "Voir la mosaïque" : "Voir le calendrier"}"
+      >${S.vue === "calendrier" ? I.mosaique : I.calendrier}</button>
     <button class="rond ${S.actualise ? "tourne" : ""}" data-a="actualiser"
       aria-label="Actualiser depuis Drive">${I.actualiser}</button>
     ${toutes.length ? `<button class="bouton plat" data-a="${S.modeChoix ? "choisir-mois" : "mode-choisir"}"
@@ -1238,10 +1322,13 @@ function vuePhotos(){
     <small>${total ? "Change de mois avec les flèches, ou dépose de nouvelles photos."
       : "Appuie sur le bouton ambre pour déposer tes premières photos."}</small></div>`;
 
+  if(S.vue === "calendrier" && !S.modeChoix)
+    return entete + alerte + vueCalendrier(jours);
+
   return entete + alerte + `<div class="${S.modeChoix ? "choix" : ""}">` + dates.map(d => {
     const gens = (S.donnees.jours[d]?.personnes || []).map(membre).filter(Boolean);
     const texte = (S.donnees.entrees||[]).some(e => e.date === d && !e.supprime);
-    return `<section>
+    return `<section id="j${d}">
       <div class="jour-tete">
         <span class="jour-date">${jourCourt(d)}</span>
         <span class="compte">${jours[d].length}</span>
@@ -1255,11 +1342,14 @@ function vuePhotos(){
             style="font-size:12.5px; padding:2px 0 2px 8px; color:var(--ambre)"
             >${texte ? "Relire" : "Raconter"}</button></span>
       </div>
-      <div class="grille">${jours[d].map(p => `
-        <button class="case ${perdue(p.id) ? "manquante" : ""}" data-a="ouvrir"
-          data-id="${p.id}" aria-pressed="${S.selection.has(p.id)}">
-          <img data-photo="${p.id}" alt="" decoding="async">
-          <span class="coche"></span></button>`).join("")}</div>
+      ${groupesParEvenement(jours[d]).map(g => `
+        ${g.nom ? `<div class="evenement-tete">${ech(g.nom)}
+          <span class="sourd">${g.photos.length}</span></div>` : ""}
+        <div class="grille">${g.photos.map(p => `
+          <button class="case ${perdue(p.id) ? "manquante" : ""}" data-a="ouvrir"
+            data-id="${p.id}" aria-pressed="${S.selection.has(p.id)}">
+            <img data-photo="${p.id}" alt="" decoding="async">
+            <span class="coche"></span></button>`).join("")}</div>`).join("")}
     </section>`;
   }).join("") + `</div>`
   + (reste > 0 ? `<div class="ligne" style="justify-content:center; padding:22px 0">
@@ -1268,6 +1358,61 @@ function vuePhotos(){
 }
 
 const perdue = id => !!S.perdues?.some(p => p.id === id);
+
+/** Dans une journée, les photos sans événement d'abord, puis chaque événement. */
+function groupesParEvenement(photos){
+  const sans = photos.filter(p => !p.evenement);
+  const parEv = new Map();
+  for(const p of photos) if(p.evenement){
+    if(!parEv.has(p.evenement)) parEv.set(p.evenement, []);
+    parEv.get(p.evenement).push(p);
+  }
+  const groupes = sans.length ? [{nom:null, photos:sans}] : [];
+  for(const [id, liste] of parEv) groupes.push({nom:nomEvenement(id) || "Événement", photos:liste});
+  return groupes;
+}
+
+/** Le mois en calendrier : les jours pleins portent une photo, les jours écrits
+    un point ambre, et le nombre de photos en bas à droite. */
+function vueCalendrier(jours){
+  const [an, mois] = S.mois.split("-").map(Number);
+  const premier = new Date(an, mois - 1, 1);
+  const nbJours = new Date(an, mois, 0).getDate();
+  const decalage = (premier.getDay() + 6) % 7;         // la semaine commence le lundi
+  const auj = new Date().toISOString().slice(0,10);
+  const textes = new Set((S.donnees.entrees||[]).filter(e => !e.supprime).map(e => e.date));
+
+  const cases = [];
+  for(let i = 0; i < decalage; i++) cases.push(`<span class="cal-case hors"></span>`);
+  for(let j = 1; j <= nbJours; j++){
+    const date = `${S.mois}-${String(j).padStart(2,"0")}`;
+    const duJour = jours[date] || [];
+    const vignette = duJour.map(p => S.urls.get(p.id)).find(Boolean);
+    const gens = (S.donnees.jours[date]?.personnes || []).map(membre).filter(Boolean);
+    cases.push(`<button class="cal-case ${duJour.length ? "pleine" : "creuse"} ${
+      date === auj ? "aujourdhui" : ""}" data-a="jour-calendrier" data-date="${date}"
+        aria-label="${jourCourt(date)}${duJour.length ? `, ${duJour.length} photos` : ""}">
+      ${vignette ? `<img src="${vignette}" alt="">` : ""}
+      <span class="num">${j}</span>
+      ${duJour.length ? `<span class="nb">${duJour.length}</span>` : ""}
+      ${evenementsDuJour(date).length ? `<span class="ev"
+        title="${ech(evenementsDuJour(date).map(e => e.nom).join(", "))}"></span>` : ""}
+      <span class="marques">${gens.slice(0,3).map(m =>
+        `<i style="background:${m.couleur}"></i>`).join("")}
+        ${textes.has(date) ? `<i style="background:var(--ambre)"></i>` : ""}</span>
+    </button>`);
+  }
+  const joursPleins = Object.keys(jours).length;
+  return `<div class="cal">
+    <div class="cal-entete">${["lun","mar","mer","jeu","ven","sam","dim"]
+      .map(j => `<span>${j}</span>`).join("")}</div>
+    <div class="cal-grille">${cases.join("")}</div>
+    <div class="cal-mois">
+      <span>${pluriel(joursPleins, "journée en photos", "journées en photos")}</span>
+      <span>${pluriel([...textes].filter(d => d.startsWith(S.mois)).length,
+        "journée racontée", "journées racontées")}</span></div>
+  </div>`;
+}
 
 function posterVignettes(){
   for(const img of document.querySelectorAll("img[data-photo]")){
@@ -1288,7 +1433,9 @@ function visionneuse(){
   return `<div class="visio" id="visio">
     <div class="visio-haut">
       <button class="rond" data-a="fermer-photo" aria-label="Fermer">${I.fermer}</button>
-      <span class="quand">${jourCourt(p.date)}${p.heure ? " · " + p.heure : ""}</span>
+      <span class="quand">${jourCourt(p.date)}${p.heure ? " · " + p.heure : ""}${
+        p.evenement ? `<br><small style="font-size:12px; color:var(--ambre)"
+          >${ech(nomEvenement(p.evenement))}</small>` : ""}</span>
       <span style="width:36px"></span>
     </div>
     <div class="visio-scene" id="scene">
@@ -1377,6 +1524,13 @@ function vueCarnets(){
       <button class="bouton" data-a="carnet" data-type="annuel" data-cle="${annee}"
         ${S.occupe?"disabled":""}>Année ${annee}</button>
     </div>
+    ${evenementsDuMois().length ? `
+      <p class="chapeau" style="margin:18px 0 8px">Par événement</p>
+      <div class="ligne">${evenementsDuMois().map(e => `
+        <button class="bouton" data-a="carnet" data-type="evenement" data-cle="${e.id}"
+          ${S.occupe?"disabled":""} style="font-size:13.5px; padding:9px 13px">
+          ${ech(e.nom)}<span class="sourd" style="font-size:12px"> · ${e.nb}</span></button>`).join("")}</div>`
+    : ""}
     ${semainesDuMois().length ? `
       <p class="chapeau" style="margin:18px 0 8px">Par semaine, dans ${moisLong(S.mois+"-01")}</p>
       <div class="ligne">${semainesDuMois().map(s => `
@@ -1408,6 +1562,13 @@ function vueCarnets(){
           ${e.motifs.map(ech).join(" · ")}</p>`:""}</div>`;
     }).join("") : `<p class="chapeau" style="margin-top:22px">Aucun carnet pour l’instant.</p>`}
   </div>`;
+}
+
+/** Les événements du mois affiché, avec leur nombre de photos. */
+function evenementsDuMois(){
+  return evenements().filter(e => e.date.startsWith(S.mois)).map(e => ({
+    ...e, nb: vivantes().filter(p => p.evenement === e.id).length
+  })).filter(e => e.nb);
 }
 
 /** Les semaines qui contiennent au moins une photo dans le mois affiché. */
@@ -1566,12 +1727,37 @@ const ACTIONS = {
       ? (S.feuillet.date || new Date().toISOString().slice(0,10)) : "";
     render();
   },
-  "date-feuillet": (el) => { S.feuillet.date = el.value; },
+  "date-feuillet": (el) => { S.feuillet.date = el.value; S.feuillet.evenement = null; render(); },
+  "choisir-evenement": (el) => {
+    S.feuillet.evenement = el.dataset.id || null;
+    render();
+    if(el.dataset.id === "__nouveau")
+      setTimeout(() => document.querySelector('[data-a="nom-evenement"]')?.focus(), 30);
+  },
+  "nom-evenement": (el) => { S.feuillet.nomEvenement = el.value; },
   "fermer-feuillet": () => { S.feuillet = null; render(); },
-  "choisir-fichiers": () => {
+  "choisir-fichiers": async () => {
     S.dateDepot = S.feuillet.date || null;
+    S.evenementDepot = await resoudreEvenement(S.feuillet);
     S.feuillet = null; render();
     $("#fichiers").click();
+  },
+  "evenement-selection": () => {
+    const premiere = vivantes().find(p => S.selection.has(p.id));
+    S.feuillet = {type:"evenement", date:premiere?.date || new Date().toISOString().slice(0,10),
+                  cible:[...S.selection], evenement:premiere?.evenement || null};
+    render();
+  },
+  "appliquer-evenement": async () => {
+    const f = S.feuillet;
+    const id = await resoudreEvenement(f);
+    const maj = new Date().toISOString();
+    for(const p of vivantes()) if(f.cible.includes(p.id)){ p.evenement = id; p.maj = maj; }
+    const n = f.cible.length;
+    S.feuillet = null; S.modeChoix = false; S.selection.clear(); render();
+    await enregistrerDonnees();
+    mot(id ? `${pluriel(n, "photo rattachée", "photos rattachées")} à « ${nomEvenement(id)} ».`
+           : `${pluriel(n, "photo détachée", "photos détachées")} de son événement.`);
   },
   "dater-photo": (el) => {
     const p = vivantes().find(x => x.id === el.dataset.id);
@@ -1596,6 +1782,20 @@ const ACTIONS = {
     // les fichiers suivent dans Drive
     await ranger(vivantes().filter(p => cible.includes(p.id)));
     render();
+  },
+  "bascule-vue": () => { S.vue = S.vue === "calendrier" ? "grille" : "calendrier"; render(); },
+  "jour-calendrier": (el) => {
+    const date = el.dataset.date;
+    const duJour = photosDuMois().filter(p => p.date === date);
+    if(duJour.length){
+      S.vue = "grille"; S.ancre = date; render();
+      requestAnimationFrame(() => {
+        document.getElementById("j" + date)?.scrollIntoView({block:"start"});
+      });
+    } else {
+      S.date = date; S.onglet = "ecrire"; S.conversation = []; S.brouillon = "";
+      empiler("ecrire"); render();
+    }
   },
   "plus-photos": () => { S.tranche = (S.tranche || TRANCHE) + TRANCHE; render();
                          chargerVignettes(); },
@@ -1833,6 +2033,19 @@ async function chargerGrande(id){
   }catch(e){ mot(e.message, true); }
 }
 
+/** Renvoie l'identifiant de l'événement choisi, en le créant au besoin. */
+async function resoudreEvenement(f){
+  if(!f.evenement) return null;
+  if(f.evenement !== "__nouveau") return f.evenement;
+  const nom = (f.nomEvenement || "").trim();
+  if(!nom) return null;
+  const e = {id:"ev" + Date.now(), nom, date:f.date, cree_le:new Date().toISOString(),
+             maj:new Date().toISOString()};
+  S.donnees.evenements = [...(S.donnees.evenements || []), e];
+  await enregistrerDonnees();
+  return e.id;
+}
+
 /* ── dépôt des photos ────────────────────────────────────────────────────── */
 async function mesurer(fichier){
   const bmp = await createImageBitmap(fichier);
@@ -1912,6 +2125,7 @@ async function deposerVraiment(fichiers){
       const dossierMois = await dossierChemin(cheminPhoto(provisoire, false));
       const id = await televerser(tirage, nomFichier(provisoire, false), [dossierMois]);
       const photo = {id, sha, sig, nom:fichier.name, taille:tirage.size,
+        evenement: S.evenementDepot || null,
         date: provisoire.date,
         dateDevinee: !S.dateDepot && !exif.date,
         heure: exif.heure || "", orientation: exif.orientation || 1,
@@ -1948,7 +2162,7 @@ async function deposerVraiment(fichiers){
   if(n) S.mois = (S.donnees.photos.at(-1)?.date || S.mois).slice(0,7);
   S.onglet = "photos";
   const devinees = vivantes().filter(p => p.dateDevinee).length;
-  S.dateDepot = null;
+  S.dateDepot = null; S.evenementDepot = null;
   render();
   if(devinees) setTimeout(() => mot(
     `${devinees} photo${devinees>1?"s":""} sans date de prise de vue, rangée${
@@ -2206,6 +2420,7 @@ async function fabriquer(regle, fiche){
       return octets;
     };
     const titre = regle.type === "mensuel" ? moisLong(regle.cle + "-01")
+                : regle.type === "evenement" ? nomEvenement(regle.cle) || "Événement"
                 : regle.type === "hebdo" ? titreSemaine(regle.cle)
                 : regle.type === "annuel" ? "Année " + regle.cle : "Carnet choisi";
     const {octets, infos} = await fabriquerLivre(s.jours,
