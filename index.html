@@ -220,7 +220,7 @@ const CONFIG = {
             gras:"polices/CrimsonText-Bold.ttf",
             italique:"polices/CrimsonText-Italic.ttf"},
 };
-const VERSION = 13;
+const VERSION = 15;
 const PORTEES = "https://www.googleapis.com/auth/drive.file "
               + "https://www.googleapis.com/auth/drive.appdata";
 
@@ -1473,6 +1473,31 @@ function vueReglages(){
     </div>
 
     <div class="fiche">
+      <b style="font-family:var(--serif); font-size:19px; font-weight:400">Entretien</b>
+      <p class="chapeau" style="margin:8px 0 0">
+        Si tu supprimes des fichiers directement dans Drive, l’application s’en aperçoit
+        à l’ouverture suivante et les retire d’elle-même. Elle ne le fait pas quand la
+        disparition est massive : dans ce cas elle demande, pour qu’un incident de réseau
+        ne vide jamais ton catalogue.</p>
+      ${S.perdues ? `<p style="margin:10px 0 0; font-size:13px; color:#9A6A1E">
+          ${pluriel(S.perdues.length, "photo n’existe plus", "photos n’existent plus")}
+          dans ton Drive. Elles sont peut-être encore dans la corbeille de Drive, où elles
+          restent 30 jours.</p>
+        <div class="ligne" style="margin-top:10px">
+          <button class="bouton" data-a="retirer-perdues">Les retirer du catalogue</button>
+          <button class="bouton plat" data-a="oublier-perdues">Plus tard</button></div>`
+      : `<div class="ligne" style="margin-top:12px">
+          <button class="bouton" data-a="verifier" ${S.avancement?"disabled":""}
+            >Vérifier maintenant</button></div>`}
+      <p class="chapeau" style="margin:14px 0 0">Repartir de zéro efface le catalogue, les
+         textes et les vignettes. Tes fichiers dans Drive ne sont pas touchés : tu pourras
+         les redéposer, ou les supprimer toi-même depuis Drive.</p>
+      <div class="ligne" style="margin-top:10px">
+        <button class="bouton plat" data-a="vider" style="color:var(--rouge)"
+          >${S.viderSur ? "Confirmer : tout effacer" : "Repartir de zéro"}</button></div>
+    </div>
+
+    <div class="fiche">
       <b style="font-family:var(--serif); font-size:19px; font-weight:400">Aide à l’écriture</b>
       <label class="champ">Adresse du relais, pour cet appareil
         <input id="r-relais" value="${ech(CONFIG.RELAIS)}" placeholder="https://…workers.dev"></label>
@@ -1509,6 +1534,7 @@ const ACTIONS = {
       S.paquets = {}; S.idPaquets = {};
       S.actualise = false; render();
       await chargerVignettes();
+      await suivreDrive(false);
       mot("À jour.");
     }catch(e){ S.actualise = false; render(); mot(e.message, true); }
   },
@@ -1642,6 +1668,34 @@ const ACTIONS = {
     render();
     mot(rates ? `${faits - rates} rangée(s), ${rates} en échec — réessaie.`
               : `${faits} photo${faits>1?"s":""} rangée${faits>1?"s":""} dans Drive.`);
+  },
+  verifier: async () => {
+    S.avancement = {texte:"Inventaire de ton Drive…", part:40}; render();
+    try{
+      const r = await suivreDrive(false);
+      S.avancement = null;
+      if(!r?.perdues.length) mot("Tous les fichiers sont là.");
+      render();
+    }catch(e){ S.avancement = null; render(); mot(e.message, true); }
+  },
+  "oublier-perdues": () => { S.perdues = null; render(); },
+  "retirer-perdues": async () => {
+    const maj = new Date().toISOString();
+    for(const p of S.perdues){ p.supprime = true; p.maj = maj; }
+    const n = S.perdues.length;
+    S.perdues = null;
+    await enregistrerDonnees(); render();
+    mot(`${pluriel(n, "photo retirée", "photos retirées")} du catalogue.`);
+  },
+  vider: async (el) => {
+    if(!S.viderSur){ S.viderSur = true; render();
+      setTimeout(() => { S.viderSur = false; if(S.onglet === "reglages") render(); }, 6000);
+      return; }
+    S.viderSur = false;
+    S.avancement = {texte:"Effacement du catalogue…", part:50}; render();
+    try{ await viderCatalogue(); S.avancement = null; S.onglet = "photos"; render();
+      mot("Catalogue vidé. Tes fichiers Drive sont intacts."); }
+    catch(e){ S.avancement = null; render(); mot(e.message, true); }
   },
   "rangement-auto": async (el) => {
     reglages().rangementAuto = el.checked; reglages().maj = new Date().toISOString();
@@ -1923,6 +1977,89 @@ function etiqueterJour(date){
   enregistrerDonnees().then(() => { render(); toast("Journée étiquetée."); });
 }
 
+/* ── entretien ───────────────────────────────────────────────────────────── */
+
+/** Inventaire de tout ce que l'application a créé dans Drive.
+    La portée drive.file limite la liste à ses propres fichiers : quelques
+    requêtes suffisent, même avec des milliers de photos. */
+async function inventaireDrive(){
+  const vus = new Set();
+  let page = "";
+  do{
+    const p = new URLSearchParams({q:"trashed=false", spaces:"drive", pageSize:"1000",
+                                   fields:"nextPageToken,files(id)"});
+    if(page) p.set("pageToken", page);
+    const r = await (await drive(`/drive/v3/files?${p}`)).json();
+    for(const f of (r.files || [])) vus.add(f.id);
+    page = r.nextPageToken || "";
+  } while(page);
+  return vus;
+}
+
+/** Compare le catalogue à Drive. Retourne ce qui a disparu, sans rien décider. */
+async function fichiersDisparus(){
+  const vus = await inventaireDrive();
+  const perdues = [], originauxPerdus = [];
+  for(const p of vivantes()){
+    if(!vus.has(p.id)) perdues.push(p);
+    else if(p.original && !p.identique && !vus.has(p.original)) originauxPerdus.push(p);
+  }
+  return {perdues, originauxPerdus, vus};
+}
+
+/** Au démarrage : ce qui a été supprimé depuis Drive disparaît aussi de l'application.
+    Garde-fou : si la disparition est massive, on ne touche à rien et on demande —
+    une requête incomplète ne doit jamais vider le catalogue. */
+async function suivreDrive(discret = true){
+  const total = vivantes().length;
+  if(!total) return;
+  const {perdues, originauxPerdus} = await fichiersDisparus();
+  let change = false;
+  const maj = new Date().toISOString();
+
+  for(const p of originauxPerdus){ p.original = null; p.tailleOriginale = 0; p.maj = maj;
+                                   change = true; }
+
+  // tout disparaître d'un coup, ou plus de la moitié, mérite une question :
+  // une requête incomplète ne doit jamais vider le catalogue en silence.
+  const massif = perdues.length === total
+              || (perdues.length > 5 && perdues.length > total / 2);
+  if(perdues.length && !massif){
+    for(const p of perdues){ p.supprime = true; p.maj = maj; }
+    change = true;
+  }
+  if(change) await enregistrerDonnees();
+
+  if(massif){
+    S.perdues = perdues;
+    if(!discret || S.onglet === "photos")
+      mot(`${pluriel(perdues.length, "photo a disparu", "photos ont disparu")} de ton Drive. `
+        + `Va dans Réglages pour décider.`, true);
+  } else if(perdues.length && !discret){
+    mot(`${pluriel(perdues.length, "photo supprimée depuis Drive a été retirée",
+      "photos supprimées depuis Drive ont été retirées")}.`);
+  }
+  render();
+  return {perdues, massif};
+}
+
+/** Efface le catalogue et les vignettes. Ne touche à aucun fichier de Drive. */
+async function viderCatalogue(){
+  const q = encodeURIComponent("name contains 'vignettes-'");
+  const r = await (await drive(
+    `/drive/v3/files?q=${q}&spaces=appDataFolder&fields=files(id)&pageSize=1000`)).json();
+  for(const f of (r.files || []))
+    await drive(`/drive/v3/files/${f.id}`, {method:"DELETE"}).catch(() => {});
+  if(S.idDonnees)
+    await drive(`/drive/v3/files/${S.idDonnees}`, {method:"DELETE"}).catch(() => {});
+  S.idDonnees = null; S.paquets = {}; S.idPaquets = {}; S.paquetsSales = new Set();
+  S.urls = new Map(); S.dossiers = {};
+  const famille = S.donnees.famille, reglages = S.donnees.reglages;
+  S.donnees = {v:VERSION, maj:new Date().toISOString(), photos:[], entrees:[], carnets:[],
+               jours:{}, famille, reglages};
+  await enregistrerDonnees();
+}
+
 /* ── rangement des fichiers déjà déposés ─────────────────────────────────── */
 const VERSION_RANGEMENT = 11;     // change si l'arborescence évolue
 const signatureRange = p => `${p.date}|${p.heure}|${p.nom}|${VERSION_RANGEMENT}`;
@@ -2082,7 +2219,8 @@ async function demarrerSession(){
   S.pret = true;
   render();
   await chargerVignettes();
-  rangementAutomatique().catch(() => {});   // en fond, sans bloquer l'affichage
+  // en fond, sans bloquer l'affichage : d'abord ce qui a disparu, puis le rangement
+  suivreDrive(true).then(() => rangementAutomatique()).catch(() => {});
 }
 async function reprendreSession(){
   if(relireJeton()){
